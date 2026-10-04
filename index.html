@@ -1,149 +1,628 @@
 <!DOCTYPE html>
-<html lang="th">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CPU Scheduling Simulator</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .gantt-block { transition: width 0.3s ease; }
+        /* Custom scrollbar for better look */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
 </head>
-<body class="bg-gray-100 text-gray-800 p-4 md:p-8 font-sans">
-    <div class="max-w-4xl mx-auto bg-white p-6 rounded-lg shadow-md">
-        <h1 class="text-2xl font-bold text-center mb-6 text-blue-600">💻 CPU Scheduling Calculator</h1>
+<body class="text-slate-800 antialiased min-h-screen flex flex-col">
+
+    <header class="bg-indigo-600 text-white shadow-md py-4">
+        <div class="container mx-auto px-4 lg:px-8">
+            <h1 class="text-2xl font-bold flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                </svg>
+                OS CPU Scheduling Simulator
+            </h1>
+            <p class="text-indigo-200 text-sm mt-1">Calculate FCFS, SJF (Non-preemptive), and Round Robin</p>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 lg:px-8 py-8 flex-grow grid grid-cols-1 lg:grid-cols-12 gap-8">
         
-        <!-- ส่วนรับข้อมูล Process -->
-        <div class="mb-6 bg-blue-50 p-4 rounded border border-blue-200">
-            <h2 class="font-semibold mb-2">เพิ่ม Process ใหม่</h2>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                <input type="text" id="pName" placeholder="ชื่อ (เช่น P1)" class="border p-2 rounded">
-                <input type="number" id="pArrival" placeholder="Arrival Time" class="border p-2 rounded" min="0">
-                <input type="number" id="pBurst" placeholder="Burst Time" class="border p-2 rounded" min="1">
-            </div>
-            <button onclick="addProcess()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 w-full md:w-auto transition">
-                ➕ เพิ่มข้อมูล
-            </button>
-        </div>
-
-        <!-- ตารางแสดง Process -->
-        <div class="overflow-x-auto mb-6">
-            <table class="w-full border-collapse border bg-white">
-                <thead>
-                    <tr class="bg-gray-200">
-                        <th class="border p-2">Process</th>
-                        <th class="border p-2">Arrival Time</th>
-                        <th class="border p-2">Burst Time</th>
-                    </tr>
-                </thead>
-                <tbody id="processTable" class="text-center">
-                    <!-- ข้อมูล Process จะมาแสดงตรงนี้ -->
-                </tbody>
-            </table>
-        </div>
-
-        <!-- ปุ่มคำนวณ Algorithms ต่างๆ -->
-        <div class="flex flex-wrap gap-4 mb-6">
-            <button onclick="calculateFCFS()" class="bg-green-500 text-white px-6 py-2 rounded hover:bg-green-600 transition shadow">คำนวณ FCFS</button>
-            <button onclick="calculateSJF()" class="bg-purple-500 text-white px-6 py-2 rounded hover:bg-purple-600 transition shadow">คำนวณ SJF</button>
-            <div class="flex items-center gap-2 bg-orange-100 p-1 rounded">
-                <input type="number" id="timeQuantum" placeholder="Time Quantum" class="border p-2 rounded w-32" value="2" min="1">
-                <button onclick="calculateRR()" class="bg-orange-500 text-white px-6 py-2 rounded hover:bg-orange-600 transition shadow">คำนวณ RR</button>
-            </div>
-        </div>
-
-        <!-- ส่วนแสดงผล Gantt Chart และเวลารอ -->
-        <div id="resultBox" class="hidden bg-gray-50 p-4 rounded border border-gray-300 mt-4">
-            <h2 class="text-xl font-bold mb-2 text-center text-gray-700" id="algoName">ผลลัพธ์</h2>
+        <div class="lg:col-span-4 flex flex-col gap-6">
             
-            <h3 class="font-semibold mt-4 mb-2 text-gray-600">Gantt Chart:</h3>
-            <div id="ganttChart" class="flex flex-wrap gap-1 mb-6 rounded overflow-hidden"></div>
-            
-            <div class="bg-white p-4 rounded border shadow-sm">
-                <h3 class="font-semibold text-lg mb-1">Average Waiting Time: <span id="avgWait" class="text-blue-600"></span></h3>
+            <!-- Settings Card -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                <h2 class="text-lg font-semibold text-slate-800 mb-4 border-b pb-2">Configuration</h2>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label for="algorithm" class="block text-sm font-medium text-slate-600 mb-1">Algorithm</label>
+                        <select id="algorithm" class="w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border bg-slate-50 text-slate-700">
+                            <option value="fcfs">First-Come, First-Served (FCFS)</option>
+                            <option value="sjf">Shortest Job First (SJF - NP)</option>
+                            <option value="rr">Round Robin (RR)</option>
+                        </select>
+                    </div>
+
+                    <div id="tq-container" class="hidden transition-all duration-300">
+                        <label for="timeQuantum" class="block text-sm font-medium text-slate-600 mb-1">Time Quantum</label>
+                        <input type="number" id="timeQuantum" min="1" value="2" class="w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border bg-slate-50 text-slate-700">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Process Table Card -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
+                <div class="p-6 border-b border-slate-200 flex justify-between items-center">
+                    <h2 class="text-lg font-semibold text-slate-800">Processes</h2>
+                    <button id="addProcessBtn" class="text-sm bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-3 py-1.5 rounded-md font-medium transition-colors flex items-center gap-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+                        Add Process
+                    </button>
+                </div>
+                
+                <div class="overflow-y-auto max-h-[400px] p-0">
+                    <table class="w-full text-left border-collapse">
+                        <thead class="bg-slate-50 sticky top-0 z-10">
+                            <tr>
+                                <th class="px-4 py-3 text-sm font-medium text-slate-500 w-1/4">Process</th>
+                                <th class="px-4 py-3 text-sm font-medium text-slate-500 w-1/3">AT</th>
+                                <th class="px-4 py-3 text-sm font-medium text-slate-500 w-1/3">BT</th>
+                                <th class="px-4 py-3 w-10 text-center"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="processTableBody" class="divide-y divide-slate-100">
+                            <!-- Rows will be generated here -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="p-4 bg-slate-50 border-t border-slate-200">
+                    <button id="calculateBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-4 rounded-lg shadow-sm transition-colors duration-200 flex justify-center items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        Calculate Schedule
+                    </button>
+                    <!-- Error Message Container -->
+                    <div id="errorMessage" class="text-red-500 text-sm mt-2 text-center hidden"></div>
+                </div>
             </div>
         </div>
-    </div>
+
+        <div class="lg:col-span-8 flex flex-col gap-6">
+            
+            <!-- Empty State / Placeholder -->
+            <div id="emptyState" class="bg-white rounded-xl shadow-sm border border-slate-200 h-full flex flex-col items-center justify-center p-12 text-center text-slate-400">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mb-4 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <h3 class="text-lg font-medium text-slate-600 mb-1">No Results Yet</h3>
+                <p class="text-sm max-w-md">Add processes on the left, select an algorithm, and click "Calculate" to view the Gantt chart and detailed metrics.</p>
+            </div>
+
+            <!-- Results Section (Hidden by default) -->
+            <div id="resultsSection" class="hidden flex-col gap-6">
+                
+                <!-- Average Metrics Cards -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex items-center gap-4">
+                        <div class="p-3 bg-blue-50 text-blue-600 rounded-lg">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        </div>
+                        <div>
+                            <p class="text-sm font-medium text-slate-500">Average Turnaround Time</p>
+                            <p class="text-2xl font-bold text-slate-800" id="avgTatDisplay">0.00</p>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex items-center gap-4">
+                        <div class="p-3 bg-emerald-50 text-emerald-600 rounded-lg">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        </div>
+                        <div>
+                            <p class="text-sm font-medium text-slate-500">Average Waiting Time</p>
+                            <p class="text-2xl font-bold text-slate-800" id="avgWtDisplay">0.00</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Gantt Chart Card -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 overflow-hidden">
+                    <h2 class="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>
+                        Gantt Chart
+                    </h2>
+                    
+                    <div class="w-full overflow-x-auto pb-6">
+                        <!-- Chart Bar Container -->
+                        <div id="ganttChart" class="flex h-16 min-w-max border border-slate-300 rounded overflow-hidden shadow-inner bg-slate-100">
+                            <!-- Gantt blocks will be injected here -->
+                        </div>
+                        <!-- Chart Timeline Container -->
+                        <div id="ganttTimeline" class="flex min-w-max relative h-6 mt-1 text-xs text-slate-500 font-medium">
+                            <!-- Timeline markers will be injected here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Detailed Table Card -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="p-6 border-b border-slate-200 bg-slate-50">
+                        <h2 class="text-lg font-semibold text-slate-800">Process Details</h2>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-slate-100 text-slate-600 font-medium">
+                                <tr>
+                                    <th class="px-6 py-4">Process</th>
+                                    <th class="px-6 py-4 text-center">Arrival Time (AT)</th>
+                                    <th class="px-6 py-4 text-center">Burst Time (BT)</th>
+                                    <th class="px-6 py-4 text-center">Completion (CT)</th>
+                                    <th class="px-6 py-4 text-center">Turnaround (TAT)</th>
+                                    <th class="px-6 py-4 text-center">Waiting (WT)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="resultTableBody" class="divide-y divide-slate-200">
+                                <!-- Results rows go here -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="p-4 bg-slate-50 text-xs text-slate-500 border-t border-slate-200 flex flex-wrap gap-4">
+                        <span class="font-medium text-slate-700">Formulas:</span>
+                        <span><b>CT</b> = Completion Time</span>
+                        <span><b>TAT</b> = CT - AT</span>
+                        <span><b>WT</b> = TAT - BT</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
 
     <script>
+        // State
+        let processCount = 0;
         let processes = [];
+        
+        // Colors for Gantt Chart (Tailwind shades)
+        const colors = [
+            'bg-blue-400', 'bg-emerald-400', 'bg-amber-400', 'bg-purple-400', 
+            'bg-rose-400', 'bg-cyan-400', 'bg-orange-400', 'bg-fuchsia-400'
+        ];
 
-        // ฟังก์ชันเพิ่มข้อมูลลงตาราง
-        function addProcess() {
-            const name = document.getElementById('pName').value;
-            const arrival = parseInt(document.getElementById('pArrival').value);
-            const burst = parseInt(document.getElementById('pBurst').value);
+        // DOM Elements
+        const processTableBody = document.getElementById('processTableBody');
+        const addProcessBtn = document.getElementById('addProcessBtn');
+        const calculateBtn = document.getElementById('calculateBtn');
+        const algorithmSelect = document.getElementById('algorithm');
+        const tqContainer = document.getElementById('tq-container');
+        const timeQuantumInput = document.getElementById('timeQuantum');
+        const errorMessage = document.getElementById('errorMessage');
+        
+        const emptyState = document.getElementById('emptyState');
+        const resultsSection = document.getElementById('resultsSection');
+        
+        // Initialize with default processes
+        function init() {
+            addProcessRow(0, 5);
+            addProcessRow(1, 3);
+            addProcessRow(2, 8);
+            addProcessRow(3, 6);
+        }
+
+        // Add Process Row to Input Table
+        function addProcessRow(defaultAT = 0, defaultBT = 1) {
+            processCount++;
+            const pName = `P${processCount}`;
             
-            if(name && !isNaN(arrival) && !isNaN(burst)) {
-                processes.push({ name, arrival, burst });
-                updateTable();
-                document.getElementById('pName').value = `P${processes.length + 1}`;
-            } else {
-                alert('กรุณากรอกข้อมูลให้ครบถ้วนและถูกต้องครับ');
+            const tr = document.createElement('tr');
+            tr.id = `row-${pName}`;
+            tr.className = "hover:bg-slate-50 transition-colors group";
+            
+            tr.innerHTML = `
+                <td class="px-4 py-3">
+                    <span class="font-medium text-slate-700 bg-slate-200 px-2 py-1 rounded text-xs">${pName}</span>
+                </td>
+                <td class="px-4 py-3">
+                    <input type="number" min="0" value="${defaultAT}" class="at-input w-full p-1.5 border border-slate-300 rounded text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                </td>
+                <td class="px-4 py-3">
+                    <input type="number" min="1" value="${defaultBT}" class="bt-input w-full p-1.5 border border-slate-300 rounded text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                </td>
+                <td class="px-4 py-3 text-right">
+                    <button onclick="removeProcessRow('${pName}')" class="text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity" title="Remove">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                </td>
+            `;
+            
+            processTableBody.appendChild(tr);
+        }
+
+        // Remove Process Row
+        function removeProcessRow(id) {
+            const row = document.getElementById(`row-${id}`);
+            if (row) {
+                row.remove();
             }
         }
 
-        function updateTable() {
-            const tbody = document.getElementById('processTable');
-            tbody.innerHTML = '';
-            processes.forEach(p => {
-                tbody.innerHTML += `<tr><td class="border p-2">${p.name}</td><td class="border p-2">${p.arrival}</td><td class="border p-2">${p.burst}</td></tr>`;
+        // Handle Algorithm change (show/hide Time Quantum)
+        algorithmSelect.addEventListener('change', (e) => {
+            if (e.target.value === 'rr') {
+                tqContainer.classList.remove('hidden');
+            } else {
+                tqContainer.classList.add('hidden');
+            }
+        });
+
+        addProcessBtn.addEventListener('click', () => addProcessRow(0, 1));
+
+        calculateBtn.addEventListener('click', () => {
+            errorMessage.classList.add('hidden');
+            processes = [];
+            
+            const rows = processTableBody.querySelectorAll('tr');
+            if (rows.length === 0) {
+                showError("Please add at least one process.");
+                return;
+            }
+
+            let isValid = true;
+            let pColorIndex = 0;
+
+            rows.forEach(row => {
+                const id = row.querySelector('span').innerText;
+                const atInput = row.querySelector('.at-input').value;
+                const btInput = row.querySelector('.bt-input').value;
+                
+                const at = parseInt(atInput);
+                const bt = parseInt(btInput);
+
+                if (isNaN(at) || at < 0 || isNaN(bt) || bt <= 0) {
+                    isValid = false;
+                } else {
+                    processes.push({ 
+                        id, 
+                        at, 
+                        bt, 
+                        color: colors[pColorIndex % colors.length]
+                    });
+                    pColorIndex++;
+                }
             });
+
+            if (!isValid) {
+                showError("Invalid input: Arrival Time must be >= 0 and Burst Time must be > 0.");
+                return;
+            }
+
+            const algo = algorithmSelect.value;
+            const tq = parseInt(timeQuantumInput.value);
+
+            if (algo === 'rr' && (isNaN(tq) || tq <= 0)) {
+                showError("Time Quantum must be greater than 0 for Round Robin.");
+                return;
+            }
+
+            // Run appropriate algorithm
+            let scheduleData;
+            if (algo === 'fcfs') {
+                scheduleData = calculateFCFS(processes);
+            } else if (algo === 'sjf') {
+                scheduleData = calculateSJF(processes);
+            } else if (algo === 'rr') {
+                scheduleData = calculateRR(processes, tq);
+            }
+
+            renderResults(scheduleData);
+        });
+
+        function showError(msg) {
+            errorMessage.innerText = msg;
+            errorMessage.classList.remove('hidden');
         }
 
-        // Logic การคำนวณ FCFS
-        function calculateFCFS() {
-            if(processes.length === 0) return alert('กรุณาเพิ่ม Process ก่อนครับ');
+        function calculateFCFS(procList) {
+            // Sort by Arrival Time
+            let p = [...procList].sort((a, b) => a.at - b.at || parseInt(a.id.substring(1)) - parseInt(b.id.substring(1)));
             
-            // ก๊อปปี้ Array และจัดเรียงตาม Arrival Time (ใครมาก่อนอยู่หน้า)
-            let sorted = [...processes].sort((a, b) => a.arrival - b.arrival);
-            
-            let currentTime = 0;
-            let totalWaitingTime = 0;
-            let ganttHTML = '';
+            let time = 0;
+            let gantt = [];
+            let results = [];
 
-            sorted.forEach(p => {
-                // ถ้า CPU ว่างก่อนที่ Process จะมาถึง ให้เวลาเดินไปหา Arrival Time
-                if(currentTime < p.arrival) {
-                    currentTime = p.arrival;
+            p.forEach(process => {
+                // Handle Idle time
+                if (time < process.at) {
+                    gantt.push({ id: 'Idle', start: time, end: process.at, color: 'bg-slate-200 stripe-pattern' });
+                    time = process.at;
                 }
                 
-                // คำนวณเวลารอ (เวลาที่เริ่มทำงาน - เวลาที่มาถึง)
-                let waitTime = currentTime - p.arrival;
-                totalWaitingTime += waitTime;
+                let start = time;
+                time += process.bt;
+                let end = time;
                 
-                // สร้างบล็อก Gantt Chart
-                let startTime = currentTime;
-                currentTime += p.burst;
+                gantt.push({ id: process.id, start, end, color: process.color });
                 
-                ganttHTML += `
-                    <div class="bg-green-200 border border-green-400 p-2 text-center flex-1 min-w-[60px]">
-                        <b class="text-green-800">${p.name}</b><br>
-                        <span class="text-xs text-gray-600">${startTime} - ${currentTime}</span>
-                    </div>`;
+                let ct = end;
+                let tat = ct - process.at;
+                let wt = tat - process.bt;
+                
+                results.push({ ...process, ct, tat, wt });
             });
 
-            document.getElementById('algoName').innerText = 'ผลลัพธ์ FCFS (First-Come, First-Served)';
-            document.getElementById('ganttChart').innerHTML = ganttHTML;
-            document.getElementById('avgWait').innerText = (totalWaitingTime / processes.length).toFixed(2) + ' ms';
-            document.getElementById('resultBox').classList.remove('hidden');
+            // Sort results back to original P1, P2 order for display
+            results.sort((a, b) => parseInt(a.id.substring(1)) - parseInt(b.id.substring(1)));
+            return { gantt, results };
         }
 
-        // --- พื้นที่สำหรับเขียนโค้ดเพิ่ม ---
-        function calculateSJF() { 
-            alert('ลองนำ Logic ของ SJF มาเขียนต่อในฟังก์ชันนี้ได้เลยครับ (ต้องเช็ค Process ที่ใช้เวลาน้อยที่สุดที่อยู่ใน Ready Queue)'); 
+        function calculateSJF(procList) {
+            let p = [...procList]; // Map processes
+            let time = 0;
+            let completed = 0;
+            let gantt = [];
+            let results = [];
+            let isCompleted = new Array(p.length).fill(false);
+            
+            while (completed < p.length) {
+                // Find all arrived, uncompleted processes
+                let available = [];
+                for (let i = 0; i < p.length; i++) {
+                    if (p[i].at <= time && !isCompleted[i]) {
+                        available.push({process: p[i], index: i});
+                    }
+                }
+                
+                if (available.length > 0) {
+                    // Sort by BT, then AT, then ID
+                    available.sort((a, b) => {
+                        if (a.process.bt !== b.process.bt) return a.process.bt - b.process.bt;
+                        if (a.process.at !== b.process.at) return a.process.at - b.process.at;
+                        return parseInt(a.process.id.substring(1)) - parseInt(b.process.id.substring(1));
+                    });
+                    
+                    let selected = available[0];
+                    let process = selected.process;
+                    
+                    let start = time;
+                    time += process.bt;
+                    let end = time;
+                    
+                    gantt.push({ id: process.id, start, end, color: process.color });
+                    
+                    let ct = end;
+                    let tat = ct - process.at;
+                    let wt = tat - process.bt;
+                    
+                    results.push({ ...process, ct, tat, wt });
+                    
+                    isCompleted[selected.index] = true;
+                    completed++;
+                } else {
+                    // CPU Idle
+                    // Find the next arrival time
+                    let nextAT = Number.MAX_SAFE_INTEGER;
+                    for (let i = 0; i < p.length; i++) {
+                        if (!isCompleted[i] && p[i].at > time) {
+                            nextAT = Math.min(nextAT, p[i].at);
+                        }
+                    }
+                    gantt.push({ id: 'Idle', start: time, end: nextAT, color: 'bg-slate-200 stripe-pattern' });
+                    time = nextAT;
+                }
+            }
+            
+            results.sort((a, b) => parseInt(a.id.substring(1)) - parseInt(b.id.substring(1)));
+            return { gantt, results };
         }
-        function calculateRR() { 
-            alert('สำหรับ Round Robin สามารถเขียนต่อยอดตรงนี้ โดยใช้ Queue และหักลบ Burst Time ตาม Time Quantum ครับ'); 
+
+        function calculateRR(procList, tq) {
+            // Sort by Arrival Time initially
+            let p = [...procList].map(proc => ({...proc, remBt: proc.bt})).sort((a, b) => a.at - b.at);
+            
+            let time = 0;
+            let gantt = [];
+            let resultsMap = new Map(); // to store final metrics
+            
+            let queue = [];
+            let pIndex = 0;
+            let completed = 0;
+            const n = p.length;
+
+            // Push initially arrived processes (usually at time 0)
+            if (p.length > 0 && p[0].at > time) {
+                // Initial idle
+                gantt.push({ id: 'Idle', start: time, end: p[0].at, color: 'bg-slate-200 stripe-pattern' });
+                time = p[0].at;
+            }
+            
+            while(pIndex < n && p[pIndex].at <= time) {
+                queue.push(p[pIndex]);
+                pIndex++;
+            }
+
+            while (completed < n) {
+                if (queue.length === 0) {
+                    // CPU Idle until next process arrives
+                    if (pIndex < n) {
+                        gantt.push({ id: 'Idle', start: time, end: p[pIndex].at, color: 'bg-slate-200 stripe-pattern' });
+                        time = p[pIndex].at;
+                        while(pIndex < n && p[pIndex].at <= time) {
+                            queue.push(p[pIndex]);
+                            pIndex++;
+                        }
+                    }
+                    continue;
+                }
+
+                let current = queue.shift();
+                
+                // Determine execution time
+                let execTime = Math.min(current.remBt, tq);
+                let start = time;
+                time += execTime;
+                let end = time;
+                
+                // Merge contiguous Gantt blocks if same process (happens sometimes)
+                if (gantt.length > 0 && gantt[gantt.length - 1].id === current.id) {
+                    gantt[gantt.length - 1].end = end;
+                } else {
+                    gantt.push({ id: current.id, start, end, color: current.color });
+                }
+
+                current.remBt -= execTime;
+
+                // Check for new arrivals during execution and add to ready queue FIRST
+                while(pIndex < n && p[pIndex].at <= time) {
+                    queue.push(p[pIndex]);
+                    pIndex++;
+                }
+
+                // If process is not finished, put it back in queue
+                if (current.remBt > 0) {
+                    queue.push(current);
+                } else {
+                    // Process is finished
+                    let ct = time;
+                    let tat = ct - current.at;
+                    let wt = tat - current.bt;
+                    resultsMap.set(current.id, { ...current, ct, tat, wt });
+                    completed++;
+                }
+            }
+
+            // Map results back to array and sort by original ID
+            let results = [];
+            procList.forEach(proc => {
+                results.push(resultsMap.get(proc.id));
+            });
+            results.sort((a, b) => parseInt(a.id.substring(1)) - parseInt(b.id.substring(1)));
+
+            return { gantt, results };
         }
-        
-        // ข้อมูลจำลองตอนเปิดเว็บ เพื่อให้กดทดสอบได้ทันที
-        window.onload = () => {
-            document.getElementById('pName').value = 'P1';
-            processes = [
-                {name: 'P1', arrival: 0, burst: 6},
-                {name: 'P2', arrival: 2, burst: 4},
-                {name: 'P3', arrival: 4, burst: 2}
-            ];
-            updateTable();
-        };
+
+        function renderResults(scheduleData) {
+            const { gantt, results } = scheduleData;
+            
+            // Show sections
+            emptyState.classList.add('hidden');
+            resultsSection.classList.remove('hidden');
+            resultsSection.classList.add('flex');
+
+            // 1. Calculate Averages
+            let totalTat = 0, totalWt = 0;
+            results.forEach(r => {
+                totalTat += r.tat;
+                totalWt += r.wt;
+            });
+            
+            document.getElementById('avgTatDisplay').innerText = (totalTat / results.length).toFixed(2);
+            document.getElementById('avgWtDisplay').innerText = (totalWt / results.length).toFixed(2);
+
+            // 2. Render Results Table
+            const resultTableBody = document.getElementById('resultTableBody');
+            resultTableBody.innerHTML = '';
+            
+            results.forEach(r => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50";
+                tr.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="flex items-center gap-2">
+                            <span class="w-3 h-3 rounded-full ${r.color}"></span>
+                            <span class="font-medium text-slate-800">${r.id}</span>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-center text-slate-600">${r.at}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-center text-slate-600">${r.bt}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-center text-emerald-600 font-semibold">${r.ct}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-center text-blue-600 font-semibold">${r.tat}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-center text-purple-600 font-semibold">${r.wt}</td>
+                `;
+                resultTableBody.appendChild(tr);
+            });
+
+            // 3. Render Gantt Chart
+            const ganttChart = document.getElementById('ganttChart');
+            const ganttTimeline = document.getElementById('ganttTimeline');
+            ganttChart.innerHTML = '';
+            ganttTimeline.innerHTML = '';
+
+            if (gantt.length === 0) return;
+
+            const totalTime = gantt[gantt.length - 1].end;
+
+            // Generate CSS pattern for Idle state
+            const styleId = "idlePatternStyle";
+            if (!document.getElementById(styleId)) {
+                const style = document.createElement('style');
+                style.id = styleId;
+                style.innerHTML = `
+                    .stripe-pattern {
+                        background-image: repeating-linear-gradient(
+                            45deg,
+                            transparent,
+                            transparent 10px,
+                            #e2e8f0 10px,
+                            #e2e8f0 20px
+                        );
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+
+            gantt.forEach((block, index) => {
+                const blockDuration = block.end - block.start;
+                const widthPercent = (blockDuration / totalTime) * 100;
+
+                // Add Bar
+                const div = document.createElement('div');
+                div.className = `flex flex-col items-center justify-center text-white text-xs sm:text-sm font-semibold border-r border-white/20 gantt-block ${block.color} overflow-hidden whitespace-nowrap`;
+                div.style.width = `${widthPercent}%`;
+                
+                if (block.id !== 'Idle') {
+                    div.innerHTML = `<span>${block.id}</span>`;
+                } else {
+                    div.innerHTML = `<span class="text-slate-500 font-medium text-xs">Idle</span>`;
+                }
+                
+                // Add tooltip
+                div.title = `${block.id}: ${block.start} to ${block.end} (Duration: ${blockDuration})`;
+                ganttChart.appendChild(div);
+
+                // Add Timeline Markers
+                // Add start marker (always for first, and others if not overlapping)
+                if (index === 0) {
+                    addMarker(block.start, 0);
+                }
+                // Add end marker
+                const leftPos = (block.end / totalTime) * 100;
+                addMarker(block.end, leftPos);
+            });
+
+            function addMarker(time, leftPercent) {
+                // Prevent duplicate overlapping labels closely
+                const existing = Array.from(ganttTimeline.children).map(c => parseFloat(c.style.left));
+                if (existing.some(l => Math.abs(l - leftPercent) < 1)) return; // skip if too close visually
+
+                const marker = document.createElement('div');
+                marker.className = 'absolute -translate-x-1/2 flex flex-col items-center';
+                marker.style.left = `${leftPercent}%`;
+                marker.innerHTML = `
+                    <div class="w-px h-2 bg-slate-300"></div>
+                    <span>${time}</span>
+                `;
+                ganttTimeline.appendChild(marker);
+            }
+        }
+
+        // Initialize App
+        init();
+
     </script>
 </body>
 </html>
