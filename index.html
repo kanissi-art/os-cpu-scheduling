@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CPU Scheduling Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 text-gray-800 p-4 md:p-8 font-sans">
+    <div class="max-w-4xl mx-auto bg-white p-6 rounded-lg shadow-md">
+        <h1 class="text-2xl font-bold text-center mb-6 text-blue-600">💻 CPU Scheduling Calculator</h1>
+        
+        <!-- ส่วนรับข้อมูล Process -->
+        <div class="mb-6 bg-blue-50 p-4 rounded border border-blue-200">
+            <h2 class="font-semibold mb-2">เพิ่ม Process ใหม่</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <input type="text" id="pName" placeholder="ชื่อ (เช่น P1)" class="border p-2 rounded">
+                <input type="number" id="pArrival" placeholder="Arrival Time" class="border p-2 rounded" min="0">
+                <input type="number" id="pBurst" placeholder="Burst Time" class="border p-2 rounded" min="1">
+            </div>
+            <button onclick="addProcess()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 w-full md:w-auto transition">
+                ➕ เพิ่มข้อมูล
+            </button>
+        </div>
+
+        <!-- ตารางแสดง Process -->
+        <div class="overflow-x-auto mb-6">
+            <table class="w-full border-collapse border bg-white">
+                <thead>
+                    <tr class="bg-gray-200">
+                        <th class="border p-2">Process</th>
+                        <th class="border p-2">Arrival Time</th>
+                        <th class="border p-2">Burst Time</th>
+                    </tr>
+                </thead>
+                <tbody id="processTable" class="text-center">
+                    <!-- ข้อมูล Process จะมาแสดงตรงนี้ -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- ปุ่มคำนวณ Algorithms ต่างๆ -->
+        <div class="flex flex-wrap gap-4 mb-6">
+            <button onclick="calculateFCFS()" class="bg-green-500 text-white px-6 py-2 rounded hover:bg-green-600 transition shadow">คำนวณ FCFS</button>
+            <button onclick="calculateSJF()" class="bg-purple-500 text-white px-6 py-2 rounded hover:bg-purple-600 transition shadow">คำนวณ SJF</button>
+            <div class="flex items-center gap-2 bg-orange-100 p-1 rounded">
+                <input type="number" id="timeQuantum" placeholder="Time Quantum" class="border p-2 rounded w-32" value="2" min="1">
+                <button onclick="calculateRR()" class="bg-orange-500 text-white px-6 py-2 rounded hover:bg-orange-600 transition shadow">คำนวณ RR</button>
+            </div>
+        </div>
+
+        <!-- ส่วนแสดงผล Gantt Chart และเวลารอ -->
+        <div id="resultBox" class="hidden bg-gray-50 p-4 rounded border border-gray-300 mt-4">
+            <h2 class="text-xl font-bold mb-2 text-center text-gray-700" id="algoName">ผลลัพธ์</h2>
+            
+            <h3 class="font-semibold mt-4 mb-2 text-gray-600">Gantt Chart:</h3>
+            <div id="ganttChart" class="flex flex-wrap gap-1 mb-6 rounded overflow-hidden"></div>
+            
+            <div class="bg-white p-4 rounded border shadow-sm">
+                <h3 class="font-semibold text-lg mb-1">Average Waiting Time: <span id="avgWait" class="text-blue-600"></span></h3>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let processes = [];
+
+        // ฟังก์ชันเพิ่มข้อมูลลงตาราง
+        function addProcess() {
+            const name = document.getElementById('pName').value;
+            const arrival = parseInt(document.getElementById('pArrival').value);
+            const burst = parseInt(document.getElementById('pBurst').value);
+            
+            if(name && !isNaN(arrival) && !isNaN(burst)) {
+                processes.push({ name, arrival, burst });
+                updateTable();
+                document.getElementById('pName').value = `P${processes.length + 1}`;
+            } else {
+                alert('กรุณากรอกข้อมูลให้ครบถ้วนและถูกต้องครับ');
+            }
+        }
+
+        function updateTable() {
+            const tbody = document.getElementById('processTable');
+            tbody.innerHTML = '';
+            processes.forEach(p => {
+                tbody.innerHTML += `<tr><td class="border p-2">${p.name}</td><td class="border p-2">${p.arrival}</td><td class="border p-2">${p.burst}</td></tr>`;
+            });
+        }
+
+        // Logic การคำนวณ FCFS
+        function calculateFCFS() {
+            if(processes.length === 0) return alert('กรุณาเพิ่ม Process ก่อนครับ');
+            
+            // ก๊อปปี้ Array และจัดเรียงตาม Arrival Time (ใครมาก่อนอยู่หน้า)
+            let sorted = [...processes].sort((a, b) => a.arrival - b.arrival);
+            
+            let currentTime = 0;
+            let totalWaitingTime = 0;
+            let ganttHTML = '';
+
+            sorted.forEach(p => {
+                // ถ้า CPU ว่างก่อนที่ Process จะมาถึง ให้เวลาเดินไปหา Arrival Time
+                if(currentTime < p.arrival) {
+                    currentTime = p.arrival;
+                }
+                
+                // คำนวณเวลารอ (เวลาที่เริ่มทำงาน - เวลาที่มาถึง)
+                let waitTime = currentTime - p.arrival;
+                totalWaitingTime += waitTime;
+                
+                // สร้างบล็อก Gantt Chart
+                let startTime = currentTime;
+                currentTime += p.burst;
+                
+                ganttHTML += `
+                    <div class="bg-green-200 border border-green-400 p-2 text-center flex-1 min-w-[60px]">
+                        <b class="text-green-800">${p.name}</b><br>
+                        <span class="text-xs text-gray-600">${startTime} - ${currentTime}</span>
+                    </div>`;
+            });
+
+            document.getElementById('algoName').innerText = 'ผลลัพธ์ FCFS (First-Come, First-Served)';
+            document.getElementById('ganttChart').innerHTML = ganttHTML;
+            document.getElementById('avgWait').innerText = (totalWaitingTime / processes.length).toFixed(2) + ' ms';
+            document.getElementById('resultBox').classList.remove('hidden');
+        }
+
+        // --- พื้นที่สำหรับเขียนโค้ดเพิ่ม ---
+        function calculateSJF() { 
+            alert('ลองนำ Logic ของ SJF มาเขียนต่อในฟังก์ชันนี้ได้เลยครับ (ต้องเช็ค Process ที่ใช้เวลาน้อยที่สุดที่อยู่ใน Ready Queue)'); 
+        }
+        function calculateRR() { 
+            alert('สำหรับ Round Robin สามารถเขียนต่อยอดตรงนี้ โดยใช้ Queue และหักลบ Burst Time ตาม Time Quantum ครับ'); 
+        }
+        
+        // ข้อมูลจำลองตอนเปิดเว็บ เพื่อให้กดทดสอบได้ทันที
+        window.onload = () => {
+            document.getElementById('pName').value = 'P1';
+            processes = [
+                {name: 'P1', arrival: 0, burst: 6},
+                {name: 'P2', arrival: 2, burst: 4},
+                {name: 'P3', arrival: 4, burst: 2}
+            ];
+            updateTable();
+        };
+    </script>
+</body>
+</html>
