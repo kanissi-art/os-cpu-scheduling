@@ -1,628 +1,2354 @@
+
+Gemini
+
+แชท
+
+Spark
+เบต้า
+งาน
+ปรับแต่ง
+กำหนดการ
+ทักษะ
+แอปที่เชื่อมต่อ
+เบต้า
+
+
+การตั้งค่า Gemini Spark
+สร้างวิธีการทำงานร่วมกับ Spark แล้ว
+
+
+ขั้นตอนของแผน
+การสนทนากับ Gemini
+ช่วยออกแบบโครงสร้างเว็บและเขียน Logic การคำนวณ CPU Scheduling (FCFS, SJF, Round Robin) ให้หน่อย ขอให้มัน มีการสุ่มโจทย์ ด้วยนะ และต้องมีหมวดครบตามภาพ
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ได้ออกแบบโครงสร้างระบบเว็บและพัฒนา Logic การคำนวณ CPU Scheduling (FCFS, SJF Non-Preemptive, SJF Preemptive/SRTF, และ Round Robin) พร้อมระบบสุ่มโจทย์แบบกำหนด Seed ได้ และมีองค์ประกอบครบทุกหมวดตามภาพตัวอย่างของใบงานมินิโปรเจกต์
+
+ไฟล์เว็บแอปพลิเคชันตัวเต็มแบบ Single-Page HTML/CSS/JS (ทำงานได้ทันทีแบบ Offline 100% ไม่ต้องต่ออินเทอร์เน็ต) ถูกสร้างเรียบร้อยแล้ว:
+
+ไอคอน HTML
+cpu_scheduling_app
+ HTML 
+1. โครงสร้างสถาปัตยกรรมเว็บ (Web Component Architecture)
+ระบบถูกแบ่งออกเป็น 6 ส่วนหลักตามภาพและข้อกำหนดของใบงาน:
+
+┌────────────────────────────────────────────────────────────────────────┐
+│ Top Bar: หัวข้อ, สลับโหมดสว่าง/มืด, ลิงก์โจทย์, Export/Import JSON, พิมพ์ A4 │
+├────────────────────────────────────────────────────────────────────────┤
+│ หมวดที่ 1: ข้อมูลผู้จัดทำและผู้ทดลอง (Auto-save ใน LocalStorage)        │
+│          - ชื่อ-สกุล, รหัสนิสิต, ตอนเรียน, สมาชิกกลุ่ม, วันที่, อาจารย์ผู้สอน │
+├────────────────────────────────────────────────────────────────────────┤
+│ แถบสลับโหมดหลัก (Navigation Tabs):                                    │
+│ [📝 โหมดฝึกทำ/แสดงโจทย์] [⚡ โหมดจำลองผลลัพธ์/Gantt] [🧪 ทดสอบกรณีพิเศษ]      │
+├────────────────────────────────────────────────────────────────────────┤
+│ หมวดที่ 2: กำหนดโจทย์และการสุ่ม (Parameter & Seed Control)             │
+│          - Seed (สุ่ม/กรอกซ้ำได้), ตัวเลือก Presets, จำนวนงาน (5-6 งาน), │
+│            Time Quantum q (1-4), วันเวลาจำลอง t0 (คำนวณวันปฏิทินจริง)    │
+├────────────────────────────────────────────────────────────────────────┤
+│ หมวดที่ 3: ตารางงานจำลอง (Processes Table)                              │
+│          - PID, ชื่องาน/วิชา, เวลารับงานปฏิทิน (t0 + AT ชม.), AT, BT,   │
+│            สีประจำงาน, ปุ่มลบ/เพิ่มงานใหม่                             │
+├────────────────────────────────────────────────────────────────────────┤
+│ หมวดที่ 4: หน้าฝึกคิดและคำนวณด้วยมือ (Practice & Self-Check Mode)     │
+│          - กล่องแนะนำสีม่วง, ช่องกรอกคำตอบ CT, TAT, WT ของนักศึกษา,      │
+│            ปุ่ม "เฉลยและตรวจเทียบผล" พร้อมระบบตรวจถูก/ผิดอัตโนมัติ     │
+├────────────────────────────────────────────────────────────────────────┤
+│ หมวดที่ 5: โหมดจำลองผลลัพธ์และวิเคราะห์ (Simulation & Analysis)         │
+│          - Gantt Chart แสดงบล็อกงานและ CPU IDLE พร้อมไทม์ไลน์         │
+│          - ตารางสรุปเวลา CT, TAT, WT, RT รายกระบวนการ + ค่าเฉลี่ย     │
+│          - การ์ดสถิติ (Avg WT, Avg TAT, CPU Utilization %, Makespan)   │
+│          - ตารางเปรียบเทียบประสิทธิภาพทุกอัลกอริทึม (Comparison Matrix) │
+├────────────────────────────────────────────────────────────────────────┤
+│ หมวดที่ 6: ชุดทดสอบกรณีพิเศษ (Edge Test Cases)                         │
+│          - CPU Idle Gap, All AT=0, Convoy Effect, Round Robin Stress   │
+└────────────────────────────────────────────────────────────────────────┘
+2. Logic การสุ่มโจทย์แบบ Reproducible Seed (Mulberry32 PRNG)
+กติกาการสุ่มตามใบงานกำหนดไว้ว่า:
+
+Arrival Time (AT) อยู่ในช่วง 0−10 ชั่วโมง
+
+Burst Time (BT) อยู่ในช่วง 1−8 ชั่วโมง
+
+ต้องมีอย่างน้อย 1 งานที่มี AT=0 และอนุญาตให้ AT ซ้ำกันได้
+
+ใช้ Seed (เช่น OS-2026) เพื่อให้สร้างชุดโจทย์เดิมซ้ำได้เหมือนกันทุกครั้ง:
+
+JavaScript
+// อัลกอริทึมสร้างเลขสุ่มเทียมจาก Seed (Mulberry32)
+function mulberry32(a) {
+  return function() {
+    let t = a += 0x6D2B79F5;
+    t = Math.imul(t ^ t >>> 15, t | 1);
+    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+function generateProcessesFromSeed(seedStr, count = 5) {
+  let seedNum = 0;
+  for (let i = 0; i < seedStr.length; i++) {
+    seedNum = (Math.imul(31, seedNum) + seedStr.charCodeAt(i)) | 0;
+  }
+  const rand = mulberry32(seedNum);
+  
+  // สุ่มเลือกตำแหน่งของงานที่จะมี AT = 0 แน่นอน 1 งาน
+  const zeroIndex = Math.floor(rand() * count);
+  const subjectList = [
+    "การบ้าน Data Structures", "โครงงาน Network", "ออกแบบ Software Eng",
+    "แบบฝึกหัด OS", "แล็ป AI & Data Science", "รายงาน Database Systems"
+  ];
+  
+  return Array.from({ length: count }, (_, i) => {
+    let at = (i === zeroIndex) ? 0 : Math.floor(rand() * 11); // 0 ถึง 10
+    if (i !== zeroIndex && rand() < 0.25) at = 0; // อนุญาตให้ AT ซ้ำที่ 0 ได้
+    const bt = Math.floor(rand() * 8) + 1;        // 1 ถึง 8
+    
+    return {
+      id: `P${i + 1}`,
+      name: subjectList[i % subjectList.length],
+      at: at,
+      bt: bt,
+      color: ["#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4"][i % 6]
+    };
+  });
+}
+3. Logic การคำนวณ CPU Scheduling แต่ละอัลกอริทึม
+สูตรมาตรฐาน:
+
+Turnaround Time: TAT=CT−AT
+
+Waiting Time: WT=TAT−BT
+
+Response Time: RT=First Run Time−AT
+
+3.1 First-Come, First-Served (FCFS)
+จัดลำดับงานตามเวลาที่มาถึง (AT) หาก AT เท่ากันจะจัดตามลำดับในตาราง (PID) พร้อมรองรับกรณี CPU ว่าง (IDLE):
+
+JavaScript
+function scheduleFCFS(processes) {
+  const sorted = [...processes].sort((a, b) => a.at - b.at);
+  let currentTime = 0;
+  const gantt = [], results = {};
+
+  sorted.forEach(p => {
+    if (currentTime < p.at) {
+      gantt.push({ id: 'IDLE', start: currentTime, end: p.at, duration: p.at - currentTime });
+      currentTime = p.at;
+    }
+    const start = currentTime;
+    const end = currentTime + p.bt;
+    const ct = end;
+    const tat = ct - p.at;
+    const wt = tat - p.bt;
+
+    gantt.push({ id: p.id, name: p.name, start, end, duration: p.bt, color: p.color });
+    results[p.id] = { ct, tat, wt, rt: start - p.at };
+    currentTime = end;
+  });
+  return { gantt, results, totalTime: currentTime };
+}
+3.2 Shortest Job First (SJF Non-Preemptive)
+ณ เวลาปัจจุบัน เลือกงานใน Ready Queue (AT≤currentTime) ที่มีค่า Burst Time (BT) น้อยที่สุด:
+
+JavaScript
+function scheduleSJF(processes) {
+  const uncompleted = processes.map(p => ({ ...p, done: false }));
+  let currentTime = 0, completed = 0;
+  const gantt = [], results = {};
+
+  while (completed < processes.length) {
+    const ready = uncompleted.filter(p => !p.done && p.at <= currentTime);
+    if (ready.length === 0) {
+      const nextArrival = Math.min(...uncompleted.filter(p => !p.done).map(p => p.at));
+      gantt.push({ id: 'IDLE', start: currentTime, end: nextArrival, duration: nextArrival - currentTime });
+      currentTime = nextArrival;
+      continue;
+    }
+
+    // เลือกงานที่ BT น้อยที่สุด (หากเท่ากันเลือกงานที่มาก่อน)
+    ready.sort((a, b) => a.bt - b.bt || a.at - b.at);
+    const chosen = ready[0];
+
+    const start = currentTime;
+    const end = currentTime + chosen.bt;
+    gantt.push({ id: chosen.id, name: chosen.name, start, end, duration: chosen.bt, color: chosen.color });
+    results[chosen.id] = { ct: end, tat: end - chosen.at, wt: (end - chosen.at) - chosen.bt, rt: start - chosen.at };
+
+    chosen.done = true;
+    completed++;
+    currentTime = end;
+  }
+  return { gantt, results, totalTime: currentTime };
+}
+3.3 Round Robin (RR) ด้วย Time Quantum q
+ใช้คิว FIFO โดยเมื่อกระบวนการทำงานได้ไม่เกิน q หน่วยเวลา งานที่เพิ่งมาถึงระหว่างช่วงเวลานั้นจะถูกนำเข้าคิวก่อนนำงานปัจจุบันที่ยังไม่เสร็จวนกลับเข้าคิว:
+
+JavaScript
+function scheduleRR(processes, quantum = 4) {
+  const procs = processes.map(p => ({
+    ...p,
+    remTime: p.bt,
+    firstStart: null,
+    ct: 0,
+    inQueue: false
+  }));
+
+  let currentTime = 0, completed = 0;
+  const queue = [], gantt = [];
+
+  // เพิ่มงานที่มาถึงที่ t = 0
+  procs.filter(p => p.at <= currentTime).sort((a, b) => a.at - b.at).forEach(p => {
+    queue.push(p);
+    p.inQueue = true;
+  });
+
+  while (completed < processes.length) {
+    if (queue.length === 0) {
+      const unarrived = procs.filter(p => p.remTime > 0 && !p.inQueue);
+      if (unarrived.length > 0) {
+        const nextArr = Math.min(...unarrived.map(p => p.at));
+        gantt.push({ id: 'IDLE', start: currentTime, end: nextArr, duration: nextArr - currentTime });
+        currentTime = nextArr;
+        procs.filter(p => p.at <= currentTime && p.remTime > 0 && !p.inQueue).forEach(p => {
+          queue.push(p);
+          p.inQueue = true;
+        });
+      }
+      continue;
+    }
+
+    const currentP = queue.shift();
+    currentP.inQueue = false;
+
+    if (currentP.firstStart === null) currentP.firstStart = currentTime;
+
+    const execTime = Math.min(currentP.remTime, quantum);
+    const start = currentTime;
+    const end = currentTime + execTime;
+
+    gantt.push({ id: currentP.id, name: currentP.name, start, end, duration: execTime, color: currentP.color });
+    currentP.remTime -= execTime;
+    currentTime = end;
+
+    // นำงานใหม่ที่เพิ่งมาถึงเข้าคิวก่อน
+    procs.forEach(p => {
+      if (p.id !== currentP.id && p.remTime > 0 && !p.inQueue && p.at <= currentTime && !queue.includes(p)) {
+        queue.push(p);
+        p.inQueue = true;
+      }
+    });
+
+    // หากงานปัจจุบันยังเหลือเวลา ให้วนกลับเข้าท้ายคิว
+    if (currentP.remTime > 0) {
+      queue.push(currentP);
+      currentP.inQueue = true;
+    } else {
+      currentP.ct = currentTime;
+      completed++;
+    }
+  }
+
+  const results = {};
+  procs.forEach(p => {
+    results[p.id] = { ct: p.ct, tat: p.ct - p.at, wt: (p.ct - p.at) - p.bt, rt: p.firstStart - p.at };
+  });
+  return { gantt, results, totalTime: currentTime };
+}
+4. การคำนวณวันเวลาตามปฏิทินจริง (t 
+0
+​
+  + AT ชั่วโมง)
+แปลงค่าเริ่มต้น t 
+0
+​
+  (เช่น 2026-10-05T22:17) รวมกับ AT (ชั่วโมง) ออกมาเป็นรูปแบบภาษาไทยตามภาพ:
+
+JavaScript
+function calculateCalendarDate(t0String, atHours) {
+  const d = new Date(t0String);
+  d.setTime(d.getTime() + (atHours * 60 * 60 * 1000));
+  
+  const daysTh = ["อา.", "จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส."];
+  const monthsTh = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+  
+  return `\({daysTh[d.getDay()]}\){d.getDate()} \({monthsTh[d.getMonth()]}\){String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')} น.`;
+}
+5. วิธีเปิดใช้งานและทดสอบ
+ดาวน์โหลดหรือเปิดไฟล์ cpu_scheduling_app.html ด้วยเว็บเบราว์เซอร์ใดก็ได้ (Chrome, Edge, Safari, Firefox)
+
+ทดลองสุ่มโจทย์: กดปุ่ม 🎲 สุ่ม หรือใส่ Seed เช่น OS-2026 แล้วกด นำไปใช้
+
+ทดลองโหมดฝึกทำ: กรอกตัวเลขค่า CT, TAT, WT ลงในตาราง แล้วกดปุ่ม 🔓 เฉลยและตรวจเทียบผล ระบบจะไฮไลต์คำตอบที่ถูกต้องเป็นสีเขียว และคำตอบที่ผิดเป็นสีแดงทันที
+
+วิเคราะห์กราฟ: สลับไปที่แท็บ ⚡ โหมดจำลองผลลัพธ์และวิเคราะห์ เพื่อดู Gantt Chart, สถิติรวม และตารางเปรียบเทียบประสิทธิภาพแบบครบวงจร
+
+พิมพ์รายงาน: กดปุ่ม 🖨️ พิมพ์ใบงาน (A4) เพื่อสั่งพิมพ์หรือบันทึกเป็น PDF ที่จัดรูปแบบพร้อมส่งอาจารย์ได้ทันที
+
+
+ขอ
+
+Gemini เป็น AI และอาจทำผิดพลาดได้
+
 <!DOCTYPE html>
-<html lang="en">
+<html lang="th">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CPU Scheduling Simulator</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
-        .gantt-block { transition: width 0.3s ease; }
-        /* Custom scrollbar for better look */
-        ::-webkit-scrollbar { width: 8px; height: 8px; }
-        ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>เว็บการจัดตารางงานส่วนบุคคล ด้วย CPU Scheduling</title>
+  <style>
+    :root {
+      --bg-base: #0b0f19;
+      --bg-card: #111827;
+      --bg-card-header: #1f293d;
+      --bg-input: #1a2234;
+      --border-color: #2e3a52;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --text-dim: #6b7280;
+      --primary: #3b82f6;
+      --primary-hover: #2563eb;
+      --accent-purple: #8b5cf6;
+      --accent-green: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-pink: #ec4899;
+      --danger: #ef4444;
+      --danger-bg: rgba(239, 68, 68, 0.15);
+      --card-radius: 12px;
+      --transition: all 0.2s ease;
+    }
+
+    [data-theme="light"] {
+      --bg-base: #f3f4f6;
+      --bg-card: #ffffff;
+      --bg-card-header: #f8fafc;
+      --bg-input: #f1f5f9;
+      --border-color: #cbd5e1;
+      --text-main: #0f172a;
+      --text-muted: #475569;
+      --text-dim: #94a3b8;
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --accent-purple: #7c3aed;
+      --accent-green: #059669;
+      --accent-amber: #d97706;
+      --accent-pink: #db2777;
+      --danger: #dc2626;
+      --danger-bg: rgba(220, 38, 38, 0.1);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Prompt', 'Sarabun', 'Segoe UI', Roboto, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-base);
+      color: var(--text-main);
+      padding: 24px;
+      min-height: 100vh;
+      line-height: 1.5;
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
+    .container {
+      max-width: 1280px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* Top Bar */
+    header.top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+      padding-bottom: 8px;
+    }
+
+    .brand-title {
+      font-size: 1.45rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-subtitle {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      border: 1px solid var(--border-color);
+      background: var(--bg-card);
+      color: var(--text-main);
+      transition: var(--transition);
+      text-decoration: none;
+    }
+
+    .btn:hover {
+      background: var(--bg-input);
+      border-color: var(--text-muted);
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+      border-color: var(--primary);
+    }
+    .btn-primary:hover {
+      background: var(--primary-hover);
+      border-color: var(--primary-hover);
+    }
+
+    .btn-success {
+      background: var(--accent-green);
+      color: #fff;
+      border-color: var(--accent-green);
+    }
+    .btn-success:hover {
+      background: #059669;
+    }
+
+    .btn-warning {
+      background: #eab308;
+      color: #000;
+      border-color: #eab308;
+      font-weight: 600;
+    }
+    .btn-warning:hover {
+      background: #ca8a04;
+    }
+
+    .btn-sm {
+      padding: 5px 10px;
+      font-size: 0.8rem;
+    }
+
+    .btn-danger-icon {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--danger);
+      cursor: pointer;
+      padding: 6px;
+      border-radius: 6px;
+    }
+    .btn-danger-icon:hover {
+      background: var(--danger-bg);
+      border-color: var(--danger);
+    }
+
+    /* Cards */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--card-radius);
+      padding: 18px 22px;
+      position: relative;
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .card-title {
+      font-size: 1.05rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 10px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      border-radius: 9999px;
+      background: rgba(59, 130, 246, 0.18);
+      color: var(--primary);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+    .badge-purple {
+      background: rgba(139, 92, 246, 0.18);
+      color: var(--accent-purple);
+      border-color: rgba(139, 92, 246, 0.3);
+    }
+
+    /* Grid Layouts */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 14px;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+    }
+
+    @media (max-width: 900px) {
+      .grid-3, .grid-4 {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+    @media (max-width: 600px) {
+      .grid-2, .grid-3, .grid-4 {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Inputs */
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .form-label {
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+    .form-control {
+      background: var(--bg-input);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 9px 12px;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      outline: none;
+      transition: var(--transition);
+      width: 100%;
+    }
+    .form-control:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+    }
+    .input-group {
+      display: flex;
+      gap: 6px;
+    }
+
+    /* Main Tab Navigation */
+    .tabs-nav {
+      display: flex;
+      gap: 10px;
+      border-bottom: 2px solid var(--border-color);
+      padding-bottom: 4px;
+      overflow-x: auto;
+    }
+    .tab-btn {
+      padding: 10px 18px;
+      border-radius: 8px 8px 0 0;
+      font-size: 0.92rem;
+      font-weight: 600;
+      background: transparent;
+      color: var(--text-muted);
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: var(--transition);
+      border-bottom: 3px solid transparent;
+      white-space: nowrap;
+    }
+    .tab-btn:hover {
+      color: var(--text-main);
+      background: var(--bg-card);
+    }
+    .tab-btn.active {
+      color: var(--primary);
+      background: var(--bg-card);
+      border-bottom-color: var(--primary);
+    }
+
+    /* Process Table */
+    .table-responsive {
+      overflow-x: auto;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.88rem;
+    }
+    th {
+      background: var(--bg-card-header);
+      padding: 10px 14px;
+      font-weight: 600;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border-color);
+      white-space: nowrap;
+    }
+    td {
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border-color);
+      vertical-align: middle;
+    }
+    tr:last-child td {
+      border-bottom: none;
+    }
+    tr:hover {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .color-dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-right: 6px;
+    }
+    .color-picker-box {
+      width: 38px;
+      height: 34px;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      cursor: pointer;
+      padding: 2px;
+      background: transparent;
+    }
+
+    /* Instruction Box (Purple Theme) */
+    .instruction-box {
+      background: rgba(139, 92, 246, 0.1);
+      border: 1px solid rgba(139, 92, 246, 0.35);
+      border-radius: var(--card-radius);
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .instruction-title {
+      font-weight: 600;
+      font-size: 0.95rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #c4b5fd;
+    }
+    .instruction-desc {
+      font-size: 0.85rem;
+      color: #e2e8f0;
+      line-height: 1.6;
+    }
+
+    /* Gantt Chart */
+    .gantt-container {
+      margin: 18px 0;
+      padding: 16px;
+      background: var(--bg-input);
+      border-radius: 10px;
+      border: 1px solid var(--border-color);
+      overflow-x: auto;
+    }
+    .gantt-chart {
+      display: flex;
+      min-width: 600px;
+      height: 52px;
+      border-radius: 6px;
+      overflow: hidden;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    .gantt-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: 600;
+      font-size: 0.82rem;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+      border-right: 1px solid rgba(0,0,0,0.15);
+      position: relative;
+      transition: filter 0.15s ease;
+      cursor: pointer;
+    }
+    .gantt-block:hover {
+      filter: brightness(1.15);
+    }
+    .gantt-block.idle {
+      background: repeating-linear-gradient(
+        45deg,
+        #374151,
+        #374151 8px,
+        #1f2937 8px,
+        #1f2937 16px
+      );
+      color: #9ca3af;
+      font-style: italic;
+    }
+    .gantt-timeline {
+      display: flex;
+      min-width: 600px;
+      position: relative;
+      margin-top: 6px;
+      height: 22px;
+    }
+    .gantt-time-marker {
+      position: absolute;
+      transform: translateX(-50%);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-family: monospace;
+    }
+
+    /* Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin: 14px 0;
+    }
+    .stat-card {
+      background: var(--bg-input);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .stat-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+    .stat-value {
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    /* Algorithm Sub-Tabs */
+    .algo-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .algo-btn {
+      padding: 7px 14px;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+      background: var(--bg-input);
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .algo-btn.active {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+    }
+
+    /* Comparison Table Highlighting */
+    .best-stat {
+      color: var(--accent-green) !important;
+      font-weight: 700;
+    }
+
+    /* Manual Answer Comparison */
+    .input-calc {
+      width: 65px;
+      padding: 5px 8px;
+      text-align: center;
+      background: var(--bg-input);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      border-radius: 6px;
+      font-weight: 600;
+    }
+    .calc-correct {
+      background-color: rgba(16, 185, 129, 0.25) !important;
+      border-color: var(--accent-green) !important;
+      color: #10b981 !important;
+    }
+    .calc-incorrect {
+      background-color: rgba(239, 68, 68, 0.25) !important;
+      border-color: var(--danger) !important;
+      color: #ef4444 !important;
+    }
+
+    /* Edge Case Cards */
+    .edge-card {
+      background: var(--bg-input);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 14px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+    .edge-card:hover {
+      border-color: var(--primary);
+      background: rgba(59, 130, 246, 0.05);
+    }
+
+    /* Log Drawer */
+    .exec-log {
+      max-height: 180px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 0.8rem;
+      padding: 10px;
+      background: var(--bg-base);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+    .exec-log-item {
+      padding: 2px 0;
+      border-bottom: 1px dashed rgba(255,255,255,0.05);
+    }
+
+    /* Print Styles for A4 */
+    @media print {
+      body {
+        background: #fff !important;
+        color: #000 !important;
+        padding: 0 !important;
+      }
+      .top-actions, .tabs-nav, .btn, #seed-section, .btn-danger-icon, #reveal-btn, .edge-section {
+        display: none !important;
+      }
+      .card {
+        border: 1px solid #ccc !important;
+        background: #fff !important;
+        page-break-inside: avoid;
+        margin-bottom: 15px !important;
+      }
+      th {
+        background: #eee !important;
+        color: #000 !important;
+      }
+      .gantt-chart {
+        border: 1px solid #999;
+      }
+      .gantt-block {
+        color: #000 !important;
+        text-shadow: none !important;
+        border: 1px solid #777;
+      }
+    }
+  </style>
 </head>
-<body class="text-slate-800 antialiased min-h-screen flex flex-col">
+<body data-theme="dark">
 
-    <header class="bg-indigo-600 text-white shadow-md py-4">
-        <div class="container mx-auto px-4 lg:px-8">
-            <h1 class="text-2xl font-bold flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-                </svg>
-                OS CPU Scheduling Simulator
-            </h1>
-            <p class="text-indigo-200 text-sm mt-1">Calculate FCFS, SJF (Non-preemptive), and Round Robin</p>
+<div class="container">
+  <!-- Top Bar -->
+  <header class="top-bar">
+    <div>
+      <div class="brand-title">
+        💻 เว็บการจัดตารางงานส่วนบุคคล ด้วย CPU Scheduling
+      </div>
+      <div class="brand-subtitle">
+        ใบงานมินิโปรเจ็กต์วิชาระบบปฏิบัติการ (Operating Systems) • FCFS, SJF, Round Robin
+      </div>
+    </div>
+    <div class="top-actions">
+      <button class="btn btn-sm" id="theme-toggle" onclick="toggleTheme()">☀️ โหมดสว่าง</button>
+      <button class="btn btn-sm" onclick="copyShareLink()">🔗 คัดลอกลิงก์โจทย์</button>
+      <button class="btn btn-sm" onclick="exportJSON()">💾 ส่งออก JSON</button>
+      <button class="btn btn-sm" onclick="document.getElementById('import-file').click()">📥 นำเข้า JSON</button>
+      <input type="file" id="import-file" style="display:none;" accept=".json" onchange="importJSON(event)">
+      <button class="btn btn-warning btn-sm" onclick="window.print()">🖨️ พิมพ์ใบงาน (A4)</button>
+    </div>
+  </header>
+
+  <!-- Section 1: User / Student Profile -->
+  <section class="card">
+    <div class="card-header">
+      <div class="card-title">
+        👤 ข้อมูลผู้จัดทำและผู้ทดลอง
+      </div>
+      <span class="badge">บันทึกข้อมูลอัตโนมัติในเบราว์เซอร์</span>
+    </div>
+    <div class="grid-3" style="margin-bottom: 12px;">
+      <div class="form-group">
+        <label class="form-label">ชื่อและนามสกุล:</label>
+        <input type="text" id="std-name" class="form-control" placeholder="เช่น นายสมชาย ใจดี" oninput="saveStudentInfo()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">รหัสนักศึกษา:</label>
+        <input type="text" id="std-id" class="form-control" placeholder="เช่น 6601xxxx" oninput="saveStudentInfo()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">กลุ่มเรียน / ตอนเรียน:</label>
+        <input type="text" id="std-sec" class="form-control" placeholder="เช่น กลุ่ม 1 / Sec 01" oninput="saveStudentInfo()">
+      </div>
+    </div>
+    <div class="grid-3">
+      <div class="form-group">
+        <label class="form-label">สมาชิกกลุ่ม (ถ้ามี):</label>
+        <input type="text" id="std-members" class="form-control" placeholder="ชื่อ-นามสกุล สมาชิกกลุ่ม" oninput="saveStudentInfo()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">วันที่ทดลอง:</label>
+        <input type="date" id="std-date" class="form-control" onchange="saveStudentInfo()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">อาจารย์ผู้สอน:</label>
+        <input type="text" id="std-instructor" class="form-control" placeholder="ชื่อผู้สอน" oninput="saveStudentInfo()">
+      </div>
+    </div>
+  </section>
+
+  <!-- Main Tabs -->
+  <nav class="tabs-nav">
+    <button class="tab-btn active" id="tab-practice-btn" onclick="switchMainTab('practice')">
+      📝 โหมดฝึกทำ / แสดงโจทย์ก่อนเฉลย
+    </button>
+    <button class="tab-btn" id="tab-sim-btn" onclick="switchMainTab('simulation')">
+      ⚡ โหมดจำลองผลลัพธ์และวิเคราะห์ (Gantt & Results)
+    </button>
+    <button class="tab-btn" id="tab-edge-btn" onclick="switchMainTab('edge')">
+      🧪 หลักฐานทดสอบกรณีพิเศษ (Edge Test Cases)
+    </button>
+  </nav>
+
+  <!-- Section 2: Parameter & Seed Control -->
+  <section class="card" id="seed-section">
+    <div class="card-header">
+      <div class="card-title">
+        ⚙️ กำหนดโจทย์และการสุ่ม (Parameter & Seed Control)
+      </div>
+      <div style="min-width: 250px;">
+        <select class="form-control" id="preset-selector" onchange="applyPreset(this.value)">
+          <option value="">-- เลือกชุดข้อมูลตัวอย่าง (Presets) --</option>
+          <option value="screenshot">ตามภาพตัวอย่าง (OS-2026, 5 งาน, q=4)</option>
+          <option value="all-zero">กรณี 1: งานมาพร้อมกันทั้งหมด (All AT=0)</option>
+          <option value="idle-gap">กรณี 2: มีช่วงเวลาว่าง (CPU Idle Gap)</option>
+          <option value="convoy">กรณี 3: Convoy Effect (งานแรกยาวมาก)</option>
+          <option value="rr-test">กรณี 4: Round Robin Quantum Stress</option>
+        </select>
+      </div>
+    </div>
+    <div class="grid-4" style="margin-bottom: 12px;">
+      <div class="form-group">
+        <label class="form-label">Seed (สำหรับสร้างโจทย์เดิมซ้ำได้):</label>
+        <div class="input-group">
+          <input type="text" id="seed-input" class="form-control" value="OS-2026">
+          <button class="btn" onclick="generateFromSeed(document.getElementById('seed-input').value)">นำไปใช้</button>
+          <button class="btn btn-primary" onclick="randomizeNewSeed()">🎲 สุ่ม</button>
         </div>
-    </header>
+      </div>
+      <div class="form-group">
+        <label class="form-label">จำนวนงานที่สุ่ม (ตามเกณฑ์ 5-6 งาน):</label>
+        <select id="process-count" class="form-control" onchange="onParamChange()">
+          <option value="5" selected>5 งาน (ตามเกณฑ์ใบงาน)</option>
+          <option value="6">6 งาน</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Time Quantum (q) [จำนวนเต็ม 1-4]:</label>
+        <input type="number" id="time-quantum" class="form-control" min="1" max="4" value="4" onchange="onParamChange()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">วันเวลาเริ่มต้นจำลอง (t0):</label>
+        <input type="datetime-local" id="t0-datetime" class="form-control" value="2026-10-05T22:17" onchange="renderProcessesTable()">
+      </div>
+    </div>
+    <div style="font-size: 0.8rem; color: var(--accent-pink);">
+      📌 <b>กติกาการสุ่มตามใบงาน:</b> AT อยู่ในช่วง 0-10 และ BT อยู่ในช่วง 1-8 โดยต้องมีอย่างน้อย 1 งานที่มี AT = 0 และอนุญาตให้ AT ซ้ำกันได้ (เหลื่อมเวลา)
+    </div>
+  </section>
 
-    <main class="container mx-auto px-4 lg:px-8 py-8 flex-grow grid grid-cols-1 lg:grid-cols-12 gap-8">
-        
-        <div class="lg:col-span-4 flex flex-col gap-6">
-            
-            <!-- Settings Card -->
-            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                <h2 class="text-lg font-semibold text-slate-800 mb-4 border-b pb-2">Configuration</h2>
-                
-                <div class="space-y-4">
-                    <div>
-                        <label for="algorithm" class="block text-sm font-medium text-slate-600 mb-1">Algorithm</label>
-                        <select id="algorithm" class="w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border bg-slate-50 text-slate-700">
-                            <option value="fcfs">First-Come, First-Served (FCFS)</option>
-                            <option value="sjf">Shortest Job First (SJF - NP)</option>
-                            <option value="rr">Round Robin (RR)</option>
-                        </select>
-                    </div>
+  <!-- Section 3: Processes Table -->
+  <section class="card">
+    <div class="card-header">
+      <div class="card-title">
+        📋 รายการงานจำลอง (Processes Table)
+        <span class="badge badge-purple" style="margin-left: 8px;">ชุดข้อมูลปัจจุบัน</span>
+      </div>
+      <button class="btn btn-sm btn-primary" onclick="addNewProcess()">+ เพิ่มงานใหม่</button>
+    </div>
+    <div class="table-responsive">
+      <table id="process-table">
+        <thead>
+          <tr>
+            <th style="width: 90px;">รหัส (PID)</th>
+            <th>ชื่องาน / วิชา</th>
+            <th>เวลารับงานตามปฏิทิน</th>
+            <th style="width: 110px;">AT (ชั่วโมง)</th>
+            <th style="width: 110px;">BT (ชั่วโมง)</th>
+            <th style="width: 70px; text-align: center;">สีระบุ</th>
+            <th style="width: 60px; text-align: center;">จัดการ</th>
+          </tr>
+        </thead>
+        <tbody id="process-list-body">
+          <!-- Dynamically populated -->
+        </tbody>
+      </table>
+    </div>
+    <div style="margin-top: 10px; font-size: 0.8rem; color: var(--text-muted);">
+      💡 คุณสามารถแก้ไขรหัส, ชื่องาน, ค่า AT และ BT ได้โดยตรงในตารางนี้ ผลการจำลองจะอัปเดตอัตโนมัติ
+    </div>
+  </section>
 
-                    <div id="tq-container" class="hidden transition-all duration-300">
-                        <label for="timeQuantum" class="block text-sm font-medium text-slate-600 mb-1">Time Quantum</label>
-                        <input type="number" id="timeQuantum" min="1" value="2" class="w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border bg-slate-50 text-slate-700">
-                    </div>
-                </div>
-            </div>
+  <!-- TAB 1 CONTENT: Practice Mode -->
+  <div id="tab-content-practice">
+    <section class="instruction-box">
+      <div class="instruction-title">
+        📝 หน้าแสดงโจทย์สำหรับฝึกคิดและคำนวณด้วยมือ
+      </div>
+      <div class="instruction-desc">
+        ระบบแสดงเฉพาะข้อมูลโจทย์ก่อนเฉลยตามข้อกำหนดหน้า 2 และหน้า 6 ของใบงาน ให้นักศึกษาบันทึกสมมติฐานและทดลองคำนวณค่า CT, TAT, WT ลงในตารางด้านล่าง จากนั้นกดปุ่ม "เฉลยและตรวจคำตอบ" เพื่อตรวจสอบความถูกต้อง
+      </div>
+      <div>
+        <button class="btn btn-success" id="reveal-btn" onclick="toggleSolutions()">
+          🔓 เฉลยและตรวจเทียบผล (Reveal Solutions)
+        </button>
+      </div>
+    </section>
 
-            <!-- Process Table Card -->
-            <div class="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
-                <div class="p-6 border-b border-slate-200 flex justify-between items-center">
-                    <h2 class="text-lg font-semibold text-slate-800">Processes</h2>
-                    <button id="addProcessBtn" class="text-sm bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-3 py-1.5 rounded-md font-medium transition-colors flex items-center gap-1">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
-                        Add Process
-                    </button>
-                </div>
-                
-                <div class="overflow-y-auto max-h-[400px] p-0">
-                    <table class="w-full text-left border-collapse">
-                        <thead class="bg-slate-50 sticky top-0 z-10">
-                            <tr>
-                                <th class="px-4 py-3 text-sm font-medium text-slate-500 w-1/4">Process</th>
-                                <th class="px-4 py-3 text-sm font-medium text-slate-500 w-1/3">AT</th>
-                                <th class="px-4 py-3 text-sm font-medium text-slate-500 w-1/3">BT</th>
-                                <th class="px-4 py-3 w-10 text-center"></th>
-                            </tr>
-                        </thead>
-                        <tbody id="processTableBody" class="divide-y divide-slate-100">
-                            <!-- Rows will be generated here -->
-                        </tbody>
-                    </table>
-                </div>
-                
-                <div class="p-4 bg-slate-50 border-t border-slate-200">
-                    <button id="calculateBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-4 rounded-lg shadow-sm transition-colors duration-200 flex justify-center items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        Calculate Schedule
-                    </button>
-                    <!-- Error Message Container -->
-                    <div id="errorMessage" class="text-red-500 text-sm mt-2 text-center hidden"></div>
-                </div>
-            </div>
+    <!-- Student Manual Calculation Worksheets -->
+    <div id="practice-worksheets" style="margin-top: 20px; display: flex; flex-direction: column; gap: 20px;">
+      <!-- Populated by JS for FCFS, SJF, Round Robin -->
+    </div>
+  </div>
+
+  <!-- TAB 2 CONTENT: Simulation & Results (Gantt & Results) -->
+  <div id="tab-content-simulation" style="display: none; display: flex; flex-direction: column; gap: 20px;">
+    <section class="card">
+      <div class="card-header">
+        <div class="card-title">⚡ ผลลัพธ์การจำลองการจัดตารางเวลา (Simulation Results)</div>
+      </div>
+      
+      <!-- Sub-tabs for Algorithms -->
+      <div class="algo-tabs">
+        <button class="algo-btn active" onclick="switchAlgo('FCFS', this)">FCFS (First-Come, First-Served)</button>
+        <button class="algo-btn" onclick="switchAlgo('SJF', this)">SJF Non-Preemptive</button>
+        <button class="algo-btn" onclick="switchAlgo('SRTF', this)">SJF Preemptive (SRTF)</button>
+        <button class="algo-btn" onclick="switchAlgo('RR', this)">Round Robin (RR)</button>
+        <button class="algo-btn" onclick="switchAlgo('COMPARISON', this)">📊 สรุปเปรียบเทียบทุกอัลกอริทึม</button>
+      </div>
+
+      <!-- Single Algorithm Detail View -->
+      <div id="single-algo-view">
+        <div class="stats-grid" id="algo-stats-grid"></div>
+
+        <h4 style="margin: 14px 0 6px 0; font-size: 0.95rem;">📊 ผังแกนต์ (Gantt Chart)</h4>
+        <div class="gantt-container">
+          <div class="gantt-chart" id="gantt-chart-bar"></div>
+          <div class="gantt-timeline" id="gantt-chart-timeline"></div>
         </div>
 
-        <div class="lg:col-span-8 flex flex-col gap-6">
-            
-            <!-- Empty State / Placeholder -->
-            <div id="emptyState" class="bg-white rounded-xl shadow-sm border border-slate-200 h-full flex flex-col items-center justify-center p-12 text-center text-slate-400">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mb-4 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <h3 class="text-lg font-medium text-slate-600 mb-1">No Results Yet</h3>
-                <p class="text-sm max-w-md">Add processes on the left, select an algorithm, and click "Calculate" to view the Gantt chart and detailed metrics.</p>
-            </div>
-
-            <!-- Results Section (Hidden by default) -->
-            <div id="resultsSection" class="hidden flex-col gap-6">
-                
-                <!-- Average Metrics Cards -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex items-center gap-4">
-                        <div class="p-3 bg-blue-50 text-blue-600 rounded-lg">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        </div>
-                        <div>
-                            <p class="text-sm font-medium text-slate-500">Average Turnaround Time</p>
-                            <p class="text-2xl font-bold text-slate-800" id="avgTatDisplay">0.00</p>
-                        </div>
-                    </div>
-                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex items-center gap-4">
-                        <div class="p-3 bg-emerald-50 text-emerald-600 rounded-lg">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        </div>
-                        <div>
-                            <p class="text-sm font-medium text-slate-500">Average Waiting Time</p>
-                            <p class="text-2xl font-bold text-slate-800" id="avgWtDisplay">0.00</p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Gantt Chart Card -->
-                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 overflow-hidden">
-                    <h2 class="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>
-                        Gantt Chart
-                    </h2>
-                    
-                    <div class="w-full overflow-x-auto pb-6">
-                        <!-- Chart Bar Container -->
-                        <div id="ganttChart" class="flex h-16 min-w-max border border-slate-300 rounded overflow-hidden shadow-inner bg-slate-100">
-                            <!-- Gantt blocks will be injected here -->
-                        </div>
-                        <!-- Chart Timeline Container -->
-                        <div id="ganttTimeline" class="flex min-w-max relative h-6 mt-1 text-xs text-slate-500 font-medium">
-                            <!-- Timeline markers will be injected here -->
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Detailed Table Card -->
-                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                    <div class="p-6 border-b border-slate-200 bg-slate-50">
-                        <h2 class="text-lg font-semibold text-slate-800">Process Details</h2>
-                    </div>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left text-sm">
-                            <thead class="bg-slate-100 text-slate-600 font-medium">
-                                <tr>
-                                    <th class="px-6 py-4">Process</th>
-                                    <th class="px-6 py-4 text-center">Arrival Time (AT)</th>
-                                    <th class="px-6 py-4 text-center">Burst Time (BT)</th>
-                                    <th class="px-6 py-4 text-center">Completion (CT)</th>
-                                    <th class="px-6 py-4 text-center">Turnaround (TAT)</th>
-                                    <th class="px-6 py-4 text-center">Waiting (WT)</th>
-                                </tr>
-                            </thead>
-                            <tbody id="resultTableBody" class="divide-y divide-slate-200">
-                                <!-- Results rows go here -->
-                            </tbody>
-                        </table>
-                    </div>
-                    
-                    <div class="p-4 bg-slate-50 text-xs text-slate-500 border-t border-slate-200 flex flex-wrap gap-4">
-                        <span class="font-medium text-slate-700">Formulas:</span>
-                        <span><b>CT</b> = Completion Time</span>
-                        <span><b>TAT</b> = CT - AT</span>
-                        <span><b>WT</b> = TAT - BT</span>
-                    </div>
-                </div>
-            </div>
+        <h4 style="margin: 16px 0 8px 0; font-size: 0.95rem;">📋 ตารางสรุปเวลาคำนวณรายกระบวนการ</h4>
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>PID</th>
+                <th>ชื่องาน</th>
+                <th>AT</th>
+                <th>BT</th>
+                <th>CT (Completion)</th>
+                <th>TAT (Turnaround = CT - AT)</th>
+                <th>WT (Waiting = TAT - BT)</th>
+                <th>RT (Response Time)</th>
+              </tr>
+            </thead>
+            <tbody id="algo-result-table-body"></tbody>
+          </table>
         </div>
-    </main>
 
-    <script>
-        // State
-        let processCount = 0;
-        let processes = [];
-        
-        // Colors for Gantt Chart (Tailwind shades)
-        const colors = [
-            'bg-blue-400', 'bg-emerald-400', 'bg-amber-400', 'bg-purple-400', 
-            'bg-rose-400', 'bg-cyan-400', 'bg-orange-400', 'bg-fuchsia-400'
-        ];
+        <h4 style="margin: 16px 0 8px 0; font-size: 0.95rem;">📜 ลำดับเหตุการณ์จำลอง (Step-by-step Execution Log)</h4>
+        <div class="exec-log" id="algo-exec-log"></div>
+      </div>
 
-        // DOM Elements
-        const processTableBody = document.getElementById('processTableBody');
-        const addProcessBtn = document.getElementById('addProcessBtn');
-        const calculateBtn = document.getElementById('calculateBtn');
-        const algorithmSelect = document.getElementById('algorithm');
-        const tqContainer = document.getElementById('tq-container');
-        const timeQuantumInput = document.getElementById('timeQuantum');
-        const errorMessage = document.getElementById('errorMessage');
-        
-        const emptyState = document.getElementById('emptyState');
-        const resultsSection = document.getElementById('resultsSection');
-        
-        // Initialize with default processes
-        function init() {
-            addProcessRow(0, 5);
-            addProcessRow(1, 3);
-            addProcessRow(2, 8);
-            addProcessRow(3, 6);
-        }
+      <!-- Comparison Matrix View -->
+      <div id="comparison-view" style="display: none;">
+        <h4 style="margin-bottom: 12px; font-size: 1rem;">📊 ตารางเปรียบเทียบประสิทธิภาพของแต่ละอัลกอริทึม</h4>
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>อัลกอริทึม (Algorithm)</th>
+                <th>เวลาสิ้นสุดรวม (Makespan)</th>
+                <th>เวลารอคอยเฉลี่ย (Avg WT)</th>
+                <th>เวลาอยู่ในระบบเฉลี่ย (Avg TAT)</th>
+                <th>CPU Utilization (%)</th>
+                <th>จำนวนครั้งสลับงาน (Context Switches)</th>
+                <th>จุดเด่น / เหมาะกับ</th>
+              </tr>
+            </thead>
+            <tbody id="comparison-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </div>
 
-        // Add Process Row to Input Table
-        function addProcessRow(defaultAT = 0, defaultBT = 1) {
-            processCount++;
-            const pName = `P${processCount}`;
-            
-            const tr = document.createElement('tr');
-            tr.id = `row-${pName}`;
-            tr.className = "hover:bg-slate-50 transition-colors group";
-            
-            tr.innerHTML = `
-                <td class="px-4 py-3">
-                    <span class="font-medium text-slate-700 bg-slate-200 px-2 py-1 rounded text-xs">${pName}</span>
-                </td>
-                <td class="px-4 py-3">
-                    <input type="number" min="0" value="${defaultAT}" class="at-input w-full p-1.5 border border-slate-300 rounded text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
-                </td>
-                <td class="px-4 py-3">
-                    <input type="number" min="1" value="${defaultBT}" class="bt-input w-full p-1.5 border border-slate-300 rounded text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
-                </td>
-                <td class="px-4 py-3 text-right">
-                    <button onclick="removeProcessRow('${pName}')" class="text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity" title="Remove">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                          <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
-                        </svg>
-                    </button>
-                </td>
-            `;
-            
-            processTableBody.appendChild(tr);
-        }
+  <!-- TAB 3 CONTENT: Edge Test Cases -->
+  <div id="tab-content-edge" style="display: none;">
+    <section class="card">
+      <div class="card-header">
+        <div class="card-title">🧪 หลักฐานทดสอบกรณีพิเศษ (Edge Test Cases)</div>
+      </div>
+      <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 16px;">
+        ชุดข้อมูลทดสอบตามเกณฑ์ใบงาน เพื่อพิสูจน์พฤติกรรมของอัลกอริทึมในกรณีขอบเขตสุดขั้ว (Edge Cases) คลิกเพื่อโหลดข้อมูลเข้าสู่ระบบทันที:
+      </p>
+      
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div class="edge-card" onclick="applyPreset('idle-gap')">
+          <div>
+            <div style="font-weight: 600; color: var(--primary);">1. กรณีเกิดช่องว่าง CPU ว่าง (CPU Idle Gap)</div>
+            <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">
+              P1 ทำเสร็จที่เวลา 3 แต่ P2 ยังไม่เข้าจนกระทั่งเวลา 7 ทำให้ CPU ว่างเปล่าระหว่าง t=3 ถึง t=7 (ทดสอบการสร้างบล็อก IDLE ใน Gantt)
+            </div>
+          </div>
+          <button class="btn btn-sm btn-primary">โหลดเคสนี้</button>
+        </div>
 
-        // Remove Process Row
-        function removeProcessRow(id) {
-            const row = document.getElementById(`row-${id}`);
-            if (row) {
-                row.remove();
-            }
-        }
+        <div class="edge-card" onclick="applyPreset('all-zero')">
+          <div>
+            <div style="font-weight: 600; color: var(--accent-green);">2. กรณีงานทั้งหมดมาพร้อมกันที่เวลาเริ่มต้น (All Arrival Time = 0)</div>
+            <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">
+              เมื่อทุกงานมี AT = 0 อัลกอริทึม SJF จะทำงานได้ประสิทธิภาพสูงสุด (Optimal WT) และ Round Robin จะกระจายความยุติธรรมอย่างแท้จริง
+            </div>
+          </div>
+          <button class="btn btn-sm btn-primary">โหลดเคสนี้</button>
+        </div>
 
-        // Handle Algorithm change (show/hide Time Quantum)
-        algorithmSelect.addEventListener('change', (e) => {
-            if (e.target.value === 'rr') {
-                tqContainer.classList.remove('hidden');
-            } else {
-                tqContainer.classList.add('hidden');
-            }
+        <div class="edge-card" onclick="applyPreset('convoy')">
+          <div>
+            <div style="font-weight: 600; color: var(--accent-amber);">3. ปรากฏการณ์ Convoy Effect ใน FCFS</div>
+            <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">
+              งานแรกใช้เวลา CPU มหาศาล (BT=16) ขณะที่งานถัดมาสั้นมาก (BT=1, 2) ส่งผลให้ Average WT ของ FCFS พุ่งสูงกว่า SJF อย่างมหาศาล
+            </div>
+          </div>
+          <button class="btn btn-sm btn-primary">โหลดเคสนี้</button>
+        </div>
+
+        <div class="edge-card" onclick="applyPreset('rr-test')">
+          <div>
+            <div style="font-weight: 600; color: var(--accent-purple);">4. ผลกระทบของ Time Quantum ต่อ Round Robin</div>
+            <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">
+              ทดสอบค่า q ต่ำ (q=1) ทำให้เกิดการสลับงานบ่อยครั้ง (High Context Switches) เทียบกับ q สูง (q=4)
+            </div>
+          </div>
+          <button class="btn btn-sm btn-primary">โหลดเคสนี้</button>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+// --- Global Data Structures ---
+const SUBJECT_POOL = [
+  "การบ้าน Data Structures",
+  "โครงงาน Network",
+  "ออกแบบ Software Eng",
+  "แบบฝึกหัด OS",
+  "แล็ป AI & Data Science",
+  "รายงาน Database Systems",
+  "มินิโปรเจกต์ Web Tech",
+  "คณิตศาสตร์คอมพิวเตอร์",
+  "โครงงานวิจัย Machine Learning",
+  "แบบฝึกหัด Cloud Computing"
+];
+
+const COLOR_PALETTE = [
+  "#3b82f6", // Blue (P1)
+  "#10b981", // Emerald (P2)
+  "#f59e0b", // Amber (P3)
+  "#8b5cf6", // Purple (P4)
+  "#ec4899", // Pink (P5)
+  "#06b6d4", // Cyan (P6)
+  "#6366f1", // Indigo
+  "#14b8a6"  // Teal
+];
+
+let processes = [];
+let currentAlgo = 'FCFS';
+let solutionsRevealed = false;
+let studentAnswers = {
+  FCFS: {},
+  SJF: {},
+  SRTF: {},
+  RR: {}
+};
+
+// Seeded PRNG (Mulberry32)
+function mulberry32(a) {
+  return function() {
+    let t = a += 0x6D2B79F5;
+    t = Math.imul(t ^ t >>> 15, t | 1);
+    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  }
+}
+
+function stringToSeed(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (Math.imul(31, hash) + str.charCodeAt(i)) | 0;
+  }
+  return hash;
+}
+
+// Generate Processes using Seed & Rules
+function generateFromSeed(seedStr) {
+  const seedNum = stringToSeed(seedStr.trim());
+  const rand = mulberry32(seedNum);
+
+  const count = parseInt(document.getElementById('process-count').value, 10) || 5;
+  const newProcesses = [];
+
+  // Rules:
+  // AT between 0 and 10, BT between 1 and 8
+  // At least one process has AT = 0
+  // AT can be duplicated
+  
+  // Pick which process index will guarantee AT = 0
+  const zeroIndex = Math.floor(rand() * count);
+
+  for (let i = 0; i < count; i++) {
+    const pid = `P${i + 1}`;
+    const name = SUBJECT_POOL[i % SUBJECT_POOL.length];
+    let at = (i === zeroIndex) ? 0 : Math.floor(rand() * 11); // 0..10
+    // If not zeroIndex, 25% chance of being 0 as well to allow multiple AT=0
+    if (i !== zeroIndex && rand() < 0.25) at = 0;
+
+    const bt = Math.floor(rand() * 8) + 1; // 1..8
+    const color = COLOR_PALETTE[i % COLOR_PALETTE.length];
+
+    newProcesses.push({
+      id: pid,
+      name: name,
+      at: at,
+      bt: bt,
+      color: color
+    });
+  }
+
+  processes = newProcesses;
+  solutionsRevealed = false;
+  updateRevealButtonText();
+  renderProcessesTable();
+  recalculateAll();
+}
+
+function randomizeNewSeed() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let randStr = 'OS-';
+  for (let i = 0; i < 4; i++) {
+    randStr += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  document.getElementById('seed-input').value = randStr;
+  generateFromSeed(randStr);
+}
+
+function onParamChange() {
+  const seed = document.getElementById('seed-input').value;
+  generateFromSeed(seed);
+}
+
+// Calendar Date Conversion: t0 + at hours
+function calculateCalendarDate(t0String, atHours) {
+  if (!t0String) return "-";
+  const d = new Date(t0String);
+  if (isNaN(d.getTime())) return "-";
+  
+  // Add AT hours (in milliseconds)
+  d.setTime(d.getTime() + (atHours * 60 * 60 * 1000));
+
+  const daysTh = ["อา.", "จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส."];
+  const monthsTh = [
+    "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
+    "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."
+  ];
+
+  const dayName = daysTh[d.getDay()];
+  const dateNum = d.getDate();
+  const monthName = monthsTh[d.getMonth()];
+  const hours = String(d.getHours()).padStart(2, '0');
+  const mins = String(d.getMinutes()).padStart(2, '0');
+
+  return `${dayName} ${dateNum} ${monthName} ${hours}:${mins} น.`;
+}
+
+// Render Processes Table
+function renderProcessesTable() {
+  const tbody = document.getElementById('process-list-body');
+  const t0 = document.getElementById('t0-datetime').value;
+  tbody.innerHTML = '';
+
+  processes.forEach((p, idx) => {
+    const tr = document.createElement('tr');
+
+    const calDate = calculateCalendarDate(t0, p.at);
+
+    tr.innerHTML = `
+      <td>
+        <span class="color-dot" style="background-color: ${p.color};"></span>
+        <input type="text" class="form-control" style="width: 50px; display:inline-block; padding: 4px 6px; font-weight: 600;" value="${p.id}" onchange="updateProcessField(${idx}, 'id', this.value)">
+      </td>
+      <td>
+        <input type="text" class="form-control" value="${p.name}" onchange="updateProcessField(${idx}, 'name', this.value)">
+      </td>
+      <td style="font-size: 0.84rem; color: var(--text-muted); font-family: monospace;">
+        ${calDate}
+      </td>
+      <td>
+        <input type="number" min="0" max="100" class="form-control" value="${p.at}" onchange="updateProcessField(${idx}, 'at', parseInt(this.value, 10))">
+      </td>
+      <td>
+        <input type="number" min="1" max="100" class="form-control" value="${p.bt}" onchange="updateProcessField(${idx}, 'bt', parseInt(this.value, 10))">
+      </td>
+      <td style="text-align: center;">
+        <input type="color" class="color-picker-box" value="${p.color}" onchange="updateProcessField(${idx}, 'color', this.value)">
+      </td>
+      <td style="text-align: center;">
+        <button class="btn-danger-icon" onclick="deleteProcess(${idx})" title="ลบงาน">🗑️</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  renderPracticeWorksheets();
+}
+
+function updateProcessField(idx, field, val) {
+  processes[idx][field] = val;
+  recalculateAll();
+}
+
+function deleteProcess(idx) {
+  if (processes.length <= 1) {
+    alert("ต้องมีอย่างน้อย 1 งาน");
+    return;
+  }
+  processes.splice(idx, 1);
+  renderProcessesTable();
+  recalculateAll();
+}
+
+function addNewProcess() {
+  const newIdx = processes.length + 1;
+  const newPid = `P${newIdx}`;
+  const color = COLOR_PALETTE[(newIdx - 1) % COLOR_PALETTE.length];
+  processes.push({
+    id: newPid,
+    name: `งานจำลอง ${newPid}`,
+    at: 0,
+    bt: 4,
+    color: color
+  });
+  renderProcessesTable();
+  recalculateAll();
+}
+
+// Preset Handler
+function applyPreset(presetKey) {
+  const t0Input = document.getElementById('t0-datetime');
+  const seedInput = document.getElementById('seed-input');
+  const qInput = document.getElementById('time-quantum');
+
+  if (presetKey === 'screenshot') {
+    seedInput.value = 'OS-2026';
+    qInput.value = 4;
+    t0Input.value = '2026-10-05T22:17';
+    processes = [
+      { id: 'P1', name: 'การบ้าน Data Structures', at: 0, bt: 3, color: '#3b82f6' },
+      { id: 'P2', name: 'โครงงาน Network', at: 7, bt: 5, color: '#10b981' },
+      { id: 'P3', name: 'ออกแบบ Software Eng', at: 0, bt: 8, color: '#f59e0b' },
+      { id: 'P4', name: 'แบบฝึกหัด OS', at: 3, bt: 3, color: '#8b5cf6' },
+      { id: 'P5', name: 'แล็ป AI & Data Science', at: 9, bt: 6, color: '#ec4899' }
+    ];
+  } else if (presetKey === 'all-zero') {
+    seedInput.value = 'EDGE-ALL-0';
+    qInput.value = 3;
+    processes = [
+      { id: 'P1', name: 'งานเอกสาร P1', at: 0, bt: 6, color: '#3b82f6' },
+      { id: 'P2', name: 'งานวิจัย P2', at: 0, bt: 2, color: '#10b981' },
+      { id: 'P3', name: 'รายงาน P3', at: 0, bt: 8, color: '#f59e0b' },
+      { id: 'P4', name: 'แล็ป P4', at: 0, bt: 3, color: '#8b5cf6' },
+      { id: 'P5', name: 'โปรเจกต์ P5', at: 0, bt: 4, color: '#ec4899' }
+    ];
+  } else if (presetKey === 'idle-gap') {
+    seedInput.value = 'EDGE-IDLE';
+    qInput.value = 2;
+    processes = [
+      { id: 'P1', name: 'งานด่วน P1', at: 0, bt: 2, color: '#3b82f6' },
+      { id: 'P2', name: 'งานมาสาย P2', at: 6, bt: 4, color: '#10b981' },
+      { id: 'P3', name: 'งานบ่าย P3', at: 7, bt: 3, color: '#f59e0b' },
+      { id: 'P4', name: 'งานเย็น P4', at: 12, bt: 2, color: '#8b5cf6' }
+    ];
+  } else if (presetKey === 'convoy') {
+    seedInput.value = 'EDGE-CONVOY';
+    qInput.value = 4;
+    processes = [
+      { id: 'P1', name: 'งานมหายักษ์ P1 (Long Job)', at: 0, bt: 16, color: '#ef4444' },
+      { id: 'P2', name: 'งานสั้นมาก P2 (Short)', at: 1, bt: 1, color: '#10b981' },
+      { id: 'P3', name: 'งานสั้นมาก P3 (Short)', at: 2, bt: 2, color: '#3b82f6' },
+      { id: 'P4', name: 'งานสั้นมาก P4 (Short)', at: 3, bt: 1, color: '#8b5cf6' }
+    ];
+  } else if (presetKey === 'rr-test') {
+    seedInput.value = 'EDGE-RR-STRESS';
+    qInput.value = 1;
+    processes = [
+      { id: 'P1', name: 'การประมวลผล P1', at: 0, bt: 5, color: '#3b82f6' },
+      { id: 'P2', name: 'การประมวลผล P2', at: 1, bt: 4, color: '#10b981' },
+      { id: 'P3', name: 'การประมวลผล P3', at: 2, bt: 3, color: '#f59e0b' }
+    ];
+  }
+
+  solutionsRevealed = false;
+  updateRevealButtonText();
+  renderProcessesTable();
+  recalculateAll();
+}
+
+// --- Scheduling Algorithms Logic ---
+
+// 1. FCFS (First-Come, First-Served)
+function scheduleFCFS(procList) {
+  // Sort primarily by Arrival Time, tie-break by original index
+  const sorted = procList.map((p, idx) => ({ ...p, origIdx: idx })).sort((a, b) => {
+    if (a.at !== b.at) return a.at - b.at;
+    return a.origIdx - b.origIdx;
+  });
+
+  let currentTime = 0;
+  const gantt = [];
+  const results = {};
+  const logs = [];
+
+  sorted.forEach(p => {
+    if (currentTime < p.at) {
+      logs.push(`[t=${currentTime} -> ${p.at}] CPU ว่าง (IDLE) กำลังรองาน ${p.id}`);
+      gantt.push({
+        id: 'IDLE',
+        name: 'CPU IDLE',
+        start: currentTime,
+        end: p.at,
+        duration: p.at - currentTime,
+        color: 'idle'
+      });
+      currentTime = p.at;
+    }
+
+    const start = currentTime;
+    const end = currentTime + p.bt;
+    const ct = end;
+    const tat = ct - p.at;
+    const wt = tat - p.bt;
+    const rt = start - p.at;
+
+    logs.push(`[t=${start}] กระบวนการ ${p.id} (${p.name}) เริ่มทำงาน จนถึง t=${end} (CT=${ct}, TAT=${tat}, WT=${wt})`);
+
+    gantt.push({
+      id: p.id,
+      name: p.name,
+      start: start,
+      end: end,
+      duration: p.bt,
+      color: p.color
+    });
+
+    results[p.id] = {
+      id: p.id,
+      name: p.name,
+      at: p.at,
+      bt: p.bt,
+      ct: ct,
+      tat: tat,
+      wt: wt,
+      rt: rt
+    };
+
+    currentTime = end;
+  });
+
+  return { gantt, results, logs, totalTime: currentTime };
+}
+
+// 2. SJF Non-Preemptive
+function scheduleSJF(procList) {
+  const uncompleted = procList.map((p, idx) => ({ ...p, origIdx: idx, done: false }));
+  let currentTime = 0;
+  let completedCount = 0;
+  const n = procList.length;
+  const gantt = [];
+  const results = {};
+  const logs = [];
+
+  while (completedCount < n) {
+    // Ready processes at currentTime
+    const available = uncompleted.filter(p => !p.done && p.at <= currentTime);
+
+    if (available.length === 0) {
+      // Find the next arrival time
+      const nextArr = Math.min(...uncompleted.filter(p => !p.done).map(p => p.at));
+      logs.push(`[t=${currentTime} -> ${nextArr}] ไม่มีงานพร้อมทำ CPU ว่าง (IDLE)`);
+      gantt.push({
+        id: 'IDLE',
+        name: 'CPU IDLE',
+        start: currentTime,
+        end: nextArr,
+        duration: nextArr - currentTime,
+        color: 'idle'
+      });
+      currentTime = nextArr;
+      continue;
+    }
+
+    // Pick process with shortest Burst Time (tie-break: arrival time, then origIdx)
+    available.sort((a, b) => {
+      if (a.bt !== b.bt) return a.bt - b.bt;
+      if (a.at !== b.at) return a.at - b.at;
+      return a.origIdx - b.origIdx;
+    });
+
+    const chosen = available[0];
+    const start = currentTime;
+    const end = currentTime + chosen.bt;
+    const ct = end;
+    const tat = ct - chosen.at;
+    const wt = tat - chosen.bt;
+    const rt = start - chosen.at;
+
+    logs.push(`[t=${start}] เลือก ${chosen.id} (BT=${chosen.bt} สั้นที่สุดใน Ready Queue) ทำงานจนเสร็จที่ t=${end}`);
+
+    gantt.push({
+      id: chosen.id,
+      name: chosen.name,
+      start: start,
+      end: end,
+      duration: chosen.bt,
+      color: chosen.color
+    });
+
+    results[chosen.id] = {
+      id: chosen.id,
+      name: chosen.name,
+      at: chosen.at,
+      bt: chosen.bt,
+      ct: ct,
+      tat: tat,
+      wt: wt,
+      rt: rt
+    };
+
+    chosen.done = true;
+    completedCount++;
+    currentTime = end;
+  }
+
+  return { gantt, results, logs, totalTime: currentTime };
+}
+
+// 3. SJF Preemptive (SRTF - Shortest Remaining Time First)
+function scheduleSRTF(procList) {
+  const n = procList.length;
+  const procs = procList.map((p, idx) => ({
+    ...p,
+    origIdx: idx,
+    remTime: p.bt,
+    firstStart: null,
+    ct: 0
+  }));
+
+  let currentTime = 0;
+  let completed = 0;
+  const rawGantt = [];
+  const logs = [];
+
+  while (completed < n) {
+    const ready = procs.filter(p => p.remTime > 0 && p.at <= currentTime);
+
+    if (ready.length === 0) {
+      const nextArr = Math.min(...procs.filter(p => p.remTime > 0).map(p => p.at));
+      rawGantt.push({ id: 'IDLE', start: currentTime, end: nextArr, color: 'idle' });
+      currentTime = nextArr;
+      continue;
+    }
+
+    ready.sort((a, b) => {
+      if (a.remTime !== b.remTime) return a.remTime - b.remTime;
+      if (a.at !== b.at) return a.at - b.at;
+      return a.origIdx - b.origIdx;
+    });
+
+    const currentP = ready[0];
+    if (currentP.firstStart === null) {
+      currentP.firstStart = currentTime;
+    }
+
+    // Run for 1 time unit (discrete step for SRTF)
+    rawGantt.push({
+      id: currentP.id,
+      name: currentP.name,
+      start: currentTime,
+      end: currentTime + 1,
+      color: currentP.color
+    });
+
+    currentP.remTime -= 1;
+    currentTime += 1;
+
+    if (currentP.remTime === 0) {
+      currentP.ct = currentTime;
+      completed++;
+      logs.push(`[t=${currentTime}] ${currentP.id} ทำงานเสร็จสมบูรณ์ (CT=${currentP.ct})`);
+    }
+  }
+
+  // Compress raw 1-unit blocks into unified gantt spans
+  const gantt = [];
+  rawGantt.forEach(block => {
+    if (gantt.length > 0 && gantt[gantt.length - 1].id === block.id) {
+      gantt[gantt.length - 1].end = block.end;
+      gantt[gantt.length - 1].duration = gantt[gantt.length - 1].end - gantt[gantt.length - 1].start;
+    } else {
+      gantt.push({
+        id: block.id,
+        name: block.name || 'CPU IDLE',
+        start: block.start,
+        end: block.end,
+        duration: block.end - block.start,
+        color: block.color
+      });
+    }
+  });
+
+  const results = {};
+  procs.forEach(p => {
+    const tat = p.ct - p.at;
+    const wt = tat - p.bt;
+    const rt = p.firstStart - p.at;
+    results[p.id] = {
+      id: p.id,
+      name: p.name,
+      at: p.at,
+      bt: p.bt,
+      ct: p.ct,
+      tat: tat,
+      wt: wt,
+      rt: rt
+    };
+  });
+
+  return { gantt, results, logs, totalTime: currentTime };
+}
+
+// 4. Round Robin (RR)
+function scheduleRR(procList, q) {
+  const quantum = parseInt(q, 10) || 4;
+  const n = procList.length;
+  const procs = procList.map((p, idx) => ({
+    ...p,
+    origIdx: idx,
+    remTime: p.bt,
+    firstStart: null,
+    ct: 0,
+    inQueue: false
+  }));
+
+  let currentTime = 0;
+  let completed = 0;
+  const queue = [];
+  const gantt = [];
+  const logs = [];
+
+  // Check initial arrivals at t=0
+  const initialArrivals = procs.filter(p => p.at <= currentTime).sort((a,b) => a.at - b.at || a.origIdx - b.origIdx);
+  initialArrivals.forEach(p => {
+    queue.push(p);
+    p.inQueue = true;
+  });
+
+  while (completed < n) {
+    if (queue.length === 0) {
+      // Find next arrival
+      const unarrived = procs.filter(p => p.remTime > 0 && !p.inQueue);
+      if (unarrived.length > 0) {
+        const nextArr = Math.min(...unarrived.map(p => p.at));
+        gantt.push({
+          id: 'IDLE',
+          name: 'CPU IDLE',
+          start: currentTime,
+          end: nextArr,
+          duration: nextArr - currentTime,
+          color: 'idle'
         });
+        logs.push(`[t=${currentTime} -> ${nextArr}] คิวว่าง CPU IDLE`);
+        currentTime = nextArr;
 
-        addProcessBtn.addEventListener('click', () => addProcessRow(0, 1));
+        procs.filter(p => p.at <= currentTime && p.remTime > 0 && !p.inQueue)
+             .sort((a,b) => a.origIdx - b.origIdx)
+             .forEach(p => {
+               queue.push(p);
+               p.inQueue = true;
+             });
+      }
+      continue;
+    }
 
-        calculateBtn.addEventListener('click', () => {
-            errorMessage.classList.add('hidden');
-            processes = [];
-            
-            const rows = processTableBody.querySelectorAll('tr');
-            if (rows.length === 0) {
-                showError("Please add at least one process.");
-                return;
-            }
+    const currentP = queue.shift();
+    currentP.inQueue = false;
 
-            let isValid = true;
-            let pColorIndex = 0;
+    if (currentP.firstStart === null) {
+      currentP.firstStart = currentTime;
+    }
 
-            rows.forEach(row => {
-                const id = row.querySelector('span').innerText;
-                const atInput = row.querySelector('.at-input').value;
-                const btInput = row.querySelector('.bt-input').value;
-                
-                const at = parseInt(atInput);
-                const bt = parseInt(btInput);
+    const execTime = Math.min(currentP.remTime, quantum);
+    const start = currentTime;
+    const end = currentTime + execTime;
 
-                if (isNaN(at) || at < 0 || isNaN(bt) || bt <= 0) {
-                    isValid = false;
-                } else {
-                    processes.push({ 
-                        id, 
-                        at, 
-                        bt, 
-                        color: colors[pColorIndex % colors.length]
-                    });
-                    pColorIndex++;
-                }
-            });
+    logs.push(`[t=${start}] ${currentP.id} ได้รับ CPU ทำงานเป็นเวลา ${execTime} หน่วย (เหลือ ${currentP.remTime - execTime})`);
 
-            if (!isValid) {
-                showError("Invalid input: Arrival Time must be >= 0 and Burst Time must be > 0.");
-                return;
-            }
+    gantt.push({
+      id: currentP.id,
+      name: currentP.name,
+      start: start,
+      end: end,
+      duration: execTime,
+      color: currentP.color
+    });
 
-            const algo = algorithmSelect.value;
-            const tq = parseInt(timeQuantumInput.value);
+    currentP.remTime -= execTime;
+    currentTime = end;
 
-            if (algo === 'rr' && (isNaN(tq) || tq <= 0)) {
-                showError("Time Quantum must be greater than 0 for Round Robin.");
-                return;
-            }
+    // Check for any new processes arriving during this time slice
+    // Standard rule: Add newly arrived processes to queue BEFORE re-adding current process
+    procs.forEach(p => {
+      if (p.id !== currentP.id && p.remTime > 0 && !p.inQueue && p.at <= currentTime && !queue.includes(p)) {
+        queue.push(p);
+        p.inQueue = true;
+      }
+    });
 
-            // Run appropriate algorithm
-            let scheduleData;
-            if (algo === 'fcfs') {
-                scheduleData = calculateFCFS(processes);
-            } else if (algo === 'sjf') {
-                scheduleData = calculateSJF(processes);
-            } else if (algo === 'rr') {
-                scheduleData = calculateRR(processes, tq);
-            }
+    if (currentP.remTime > 0) {
+      queue.push(currentP);
+      currentP.inQueue = true;
+    } else {
+      currentP.ct = currentTime;
+      completed++;
+      logs.push(`[t=${currentTime}] ${currentP.id} เสร็จสิ้นภารกิจ (CT=${currentP.ct})`);
+    }
+  }
 
-            renderResults(scheduleData);
-        });
+  const results = {};
+  procs.forEach(p => {
+    const tat = p.ct - p.at;
+    const wt = tat - p.bt;
+    const rt = p.firstStart - p.at;
+    results[p.id] = {
+      id: p.id,
+      name: p.name,
+      at: p.at,
+      bt: p.bt,
+      ct: p.ct,
+      tat: tat,
+      wt: wt,
+      rt: rt
+    };
+  });
 
-        function showError(msg) {
-            errorMessage.innerText = msg;
-            errorMessage.classList.remove('hidden');
-        }
+  return { gantt, results, logs, totalTime: currentTime };
+}
 
-        function calculateFCFS(procList) {
-            // Sort by Arrival Time
-            let p = [...procList].sort((a, b) => a.at - b.at || parseInt(a.id.substring(1)) - parseInt(b.id.substring(1)));
-            
-            let time = 0;
-            let gantt = [];
-            let results = [];
+// Master Recalculate
+let scheduleData = {};
 
-            p.forEach(process => {
-                // Handle Idle time
-                if (time < process.at) {
-                    gantt.push({ id: 'Idle', start: time, end: process.at, color: 'bg-slate-200 stripe-pattern' });
-                    time = process.at;
-                }
-                
-                let start = time;
-                time += process.bt;
-                let end = time;
-                
-                gantt.push({ id: process.id, start, end, color: process.color });
-                
-                let ct = end;
-                let tat = ct - process.at;
-                let wt = tat - process.bt;
-                
-                results.push({ ...process, ct, tat, wt });
-            });
+function recalculateAll() {
+  const q = parseInt(document.getElementById('time-quantum').value, 10) || 4;
+  scheduleData = {
+    FCFS: scheduleFCFS(processes),
+    SJF: scheduleSJF(processes),
+    SRTF: scheduleSRTF(processes),
+    RR: scheduleRR(processes, q)
+  };
 
-            // Sort results back to original P1, P2 order for display
-            results.sort((a, b) => parseInt(a.id.substring(1)) - parseInt(b.id.substring(1)));
-            return { gantt, results };
-        }
+  renderSingleAlgoView();
+  renderComparisonTable();
+  if (solutionsRevealed) {
+    checkStudentAnswers();
+  }
+}
 
-        function calculateSJF(procList) {
-            let p = [...procList]; // Map processes
-            let time = 0;
-            let completed = 0;
-            let gantt = [];
-            let results = [];
-            let isCompleted = new Array(p.length).fill(false);
-            
-            while (completed < p.length) {
-                // Find all arrived, uncompleted processes
-                let available = [];
-                for (let i = 0; i < p.length; i++) {
-                    if (p[i].at <= time && !isCompleted[i]) {
-                        available.push({process: p[i], index: i});
-                    }
-                }
-                
-                if (available.length > 0) {
-                    // Sort by BT, then AT, then ID
-                    available.sort((a, b) => {
-                        if (a.process.bt !== b.process.bt) return a.process.bt - b.process.bt;
-                        if (a.process.at !== b.process.at) return a.process.at - b.process.at;
-                        return parseInt(a.process.id.substring(1)) - parseInt(b.process.id.substring(1));
-                    });
-                    
-                    let selected = available[0];
-                    let process = selected.process;
-                    
-                    let start = time;
-                    time += process.bt;
-                    let end = time;
-                    
-                    gantt.push({ id: process.id, start, end, color: process.color });
-                    
-                    let ct = end;
-                    let tat = ct - process.at;
-                    let wt = tat - process.bt;
-                    
-                    results.push({ ...process, ct, tat, wt });
-                    
-                    isCompleted[selected.index] = true;
-                    completed++;
-                } else {
-                    // CPU Idle
-                    // Find the next arrival time
-                    let nextAT = Number.MAX_SAFE_INTEGER;
-                    for (let i = 0; i < p.length; i++) {
-                        if (!isCompleted[i] && p[i].at > time) {
-                            nextAT = Math.min(nextAT, p[i].at);
-                        }
-                    }
-                    gantt.push({ id: 'Idle', start: time, end: nextAT, color: 'bg-slate-200 stripe-pattern' });
-                    time = nextAT;
-                }
-            }
-            
-            results.sort((a, b) => parseInt(a.id.substring(1)) - parseInt(b.id.substring(1)));
-            return { gantt, results };
-        }
+// Render Gantt & Results for Selected Algo
+function renderSingleAlgoView() {
+  const data = scheduleData[currentAlgo];
+  if (!data) return;
 
-        function calculateRR(procList, tq) {
-            // Sort by Arrival Time initially
-            let p = [...procList].map(proc => ({...proc, remBt: proc.bt})).sort((a, b) => a.at - b.at);
-            
-            let time = 0;
-            let gantt = [];
-            let resultsMap = new Map(); // to store final metrics
-            
-            let queue = [];
-            let pIndex = 0;
-            let completed = 0;
-            const n = p.length;
+  const totalTime = data.totalTime || 1;
+  const n = processes.length || 1;
 
-            // Push initially arrived processes (usually at time 0)
-            if (p.length > 0 && p[0].at > time) {
-                // Initial idle
-                gantt.push({ id: 'Idle', start: time, end: p[0].at, color: 'bg-slate-200 stripe-pattern' });
-                time = p[0].at;
-            }
-            
-            while(pIndex < n && p[pIndex].at <= time) {
-                queue.push(p[pIndex]);
-                pIndex++;
-            }
+  // Compute metrics
+  let totalWT = 0, totalTAT = 0, totalRT = 0, totalBusy = 0;
+  let contextSwitches = Math.max(0, data.gantt.filter(g => g.id !== 'IDLE').length - 1);
 
-            while (completed < n) {
-                if (queue.length === 0) {
-                    // CPU Idle until next process arrives
-                    if (pIndex < n) {
-                        gantt.push({ id: 'Idle', start: time, end: p[pIndex].at, color: 'bg-slate-200 stripe-pattern' });
-                        time = p[pIndex].at;
-                        while(pIndex < n && p[pIndex].at <= time) {
-                            queue.push(p[pIndex]);
-                            pIndex++;
-                        }
-                    }
-                    continue;
-                }
+  Object.values(data.results).forEach(r => {
+    totalWT += r.wt;
+    totalTAT += r.tat;
+    totalRT += r.rt;
+    totalBusy += r.bt;
+  });
 
-                let current = queue.shift();
-                
-                // Determine execution time
-                let execTime = Math.min(current.remBt, tq);
-                let start = time;
-                time += execTime;
-                let end = time;
-                
-                // Merge contiguous Gantt blocks if same process (happens sometimes)
-                if (gantt.length > 0 && gantt[gantt.length - 1].id === current.id) {
-                    gantt[gantt.length - 1].end = end;
-                } else {
-                    gantt.push({ id: current.id, start, end, color: current.color });
-                }
+  const avgWT = (totalWT / n).toFixed(2);
+  const avgTAT = (totalTAT / n).toFixed(2);
+  const avgRT = (totalRT / n).toFixed(2);
+  const cpuUtil = ((totalBusy / totalTime) * 100).toFixed(1);
+  const throughput = (n / totalTime).toFixed(3);
 
-                current.remBt -= execTime;
+  // Render Stats Cards
+  const statsGrid = document.getElementById('algo-stats-grid');
+  statsGrid.innerHTML = `
+    <div class="stat-card">
+      <div class="stat-label">เวลารอคอยเฉลี่ย (Avg WT)</div>
+      <div class="stat-value">${avgWT} <span style="font-size: 0.85rem; font-weight: normal; color: var(--text-muted);">ชม.</span></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">เวลาอยู่ในระบบเฉลี่ย (Avg TAT)</div>
+      <div class="stat-value">${avgTAT} <span style="font-size: 0.85rem; font-weight: normal; color: var(--text-muted);">ชม.</span></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">CPU Utilization</div>
+      <div class="stat-value">${cpuUtil}%</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Throughput (งาน/ชม.)</div>
+      <div class="stat-value">${throughput}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">เวลาเสร็จสิ้นรวม (Makespan)</div>
+      <div class="stat-value">${totalTime} <span style="font-size: 0.85rem; font-weight: normal; color: var(--text-muted);">ชม.</span></div>
+    </div>
+  `;
 
-                // Check for new arrivals during execution and add to ready queue FIRST
-                while(pIndex < n && p[pIndex].at <= time) {
-                    queue.push(p[pIndex]);
-                    pIndex++;
-                }
+  // Render Gantt Bar
+  const ganttBar = document.getElementById('gantt-chart-bar');
+  const ganttTimeline = document.getElementById('gantt-chart-timeline');
+  ganttBar.innerHTML = '';
+  ganttTimeline.innerHTML = '';
 
-                // If process is not finished, put it back in queue
-                if (current.remBt > 0) {
-                    queue.push(current);
-                } else {
-                    // Process is finished
-                    let ct = time;
-                    let tat = ct - current.at;
-                    let wt = tat - current.bt;
-                    resultsMap.set(current.id, { ...current, ct, tat, wt });
-                    completed++;
-                }
-            }
+  data.gantt.forEach((block, idx) => {
+    const pct = ((block.duration / totalTime) * 100).toFixed(3);
+    const div = document.createElement('div');
+    div.className = `gantt-block ${block.color === 'idle' ? 'idle' : ''}`;
+    div.style.width = `${pct}%`;
+    if (block.color !== 'idle') {
+      div.style.backgroundColor = block.color;
+    }
+    div.title = `${block.name || block.id}: เริ่ม t=${block.start}, สิ้นสุด t=${block.end} (นาน ${block.duration} ชม.)`;
+    div.innerHTML = `<span>${block.id}</span><span style="font-size:0.65rem; opacity:0.8;">(${block.duration})</span>`;
+    ganttBar.appendChild(div);
 
-            // Map results back to array and sort by original ID
-            let results = [];
-            procList.forEach(proc => {
-                results.push(resultsMap.get(proc.id));
-            });
-            results.sort((a, b) => parseInt(a.id.substring(1)) - parseInt(b.id.substring(1)));
+    // Marker for start
+    if (idx === 0) {
+      const mStart = document.createElement('span');
+      mStart.className = 'gantt-time-marker';
+      mStart.style.left = '0%';
+      mStart.textContent = '0';
+      ganttTimeline.appendChild(mStart);
+    }
+    // Marker for end
+    const mEnd = document.createElement('span');
+    mEnd.className = 'gantt-time-marker';
+    const endPct = ((block.end / totalTime) * 100).toFixed(3);
+    mEnd.style.left = `${endPct}%`;
+    mEnd.textContent = block.end;
+    ganttTimeline.appendChild(mEnd);
+  });
 
-            return { gantt, results };
-        }
+  // Render Result Table
+  const tableBody = document.getElementById('algo-result-table-body');
+  tableBody.innerHTML = '';
 
-        function renderResults(scheduleData) {
-            const { gantt, results } = scheduleData;
-            
-            // Show sections
-            emptyState.classList.add('hidden');
-            resultsSection.classList.remove('hidden');
-            resultsSection.classList.add('flex');
+  processes.forEach(p => {
+    const r = data.results[p.id] || { ct: 0, tat: 0, wt: 0, rt: 0 };
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><span class="color-dot" style="background-color: ${p.color};"></span><b>${p.id}</b></td>
+      <td>${p.name}</td>
+      <td>${p.at}</td>
+      <td>${p.bt}</td>
+      <td><b style="color: var(--primary);">${r.ct}</b></td>
+      <td>${r.tat}</td>
+      <td>${r.wt}</td>
+      <td>${r.rt}</td>
+    `;
+    tableBody.appendChild(tr);
+  });
 
-            // 1. Calculate Averages
-            let totalTat = 0, totalWt = 0;
-            results.forEach(r => {
-                totalTat += r.tat;
-                totalWt += r.wt;
-            });
-            
-            document.getElementById('avgTatDisplay').innerText = (totalTat / results.length).toFixed(2);
-            document.getElementById('avgWtDisplay').innerText = (totalWt / results.length).toFixed(2);
+  // Add average summary row
+  const sumRow = document.createElement('tr');
+  sumRow.style.background = 'var(--bg-card-header)';
+  sumRow.style.fontWeight = 'bold';
+  sumRow.innerHTML = `
+    <td colspan="4" style="text-align: right;">เฉลี่ย (Average):</td>
+    <td>-</td>
+    <td style="color: var(--primary);">${avgTAT}</td>
+    <td style="color: var(--accent-green);">${avgWT}</td>
+    <td>${avgRT}</td>
+  `;
+  tableBody.appendChild(sumRow);
 
-            // 2. Render Results Table
-            const resultTableBody = document.getElementById('resultTableBody');
-            resultTableBody.innerHTML = '';
-            
-            results.forEach(r => {
-                const tr = document.createElement('tr');
-                tr.className = "hover:bg-slate-50";
-                tr.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <div class="flex items-center gap-2">
-                            <span class="w-3 h-3 rounded-full ${r.color}"></span>
-                            <span class="font-medium text-slate-800">${r.id}</span>
-                        </div>
+  // Render Log
+  const logBox = document.getElementById('algo-exec-log');
+  logBox.innerHTML = data.logs.map(l => `<div class="exec-log-item">${l}</div>`).join('');
+}
+
+// Render Comparison Matrix
+function renderComparisonTable() {
+  const tbody = document.getElementById('comparison-table-body');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+
+  const algos = [
+    { key: 'FCFS', name: 'FCFS (First-Come, First-Served)', desc: 'เรียบง่าย ไม่เกิด starvation แต่เสี่ยงต่อ Convoy effect' },
+    { key: 'SJF', name: 'SJF Non-Preemptive', desc: 'ให้ค่าเฉลี่ยเวลารอต่ำสำหรับ batch job ไม่มีการสลับงานกลางคัน' },
+    { key: 'SRTF', name: 'SJF Preemptive (SRTF)', desc: 'ให้ค่า Average WT ต่ำสุดตามทฤษฎี เหมาะกับระบบงานสั้น' },
+    { key: 'RR', name: `Round Robin (q=${document.getElementById('time-quantum').value})`, desc: 'ยุติธรรมสูง ตอบสนองงาน interactive ดีมาก ไม่เกิด starvation' }
+  ];
+
+  let minAvgWT = Infinity;
+  let minAvgTAT = Infinity;
+
+  const stats = algos.map(a => {
+    const data = scheduleData[a.key];
+    if (!data) return null;
+    let totalWT = 0, totalTAT = 0, totalBusy = 0;
+    const n = processes.length || 1;
+    const totalTime = data.totalTime || 1;
+    const switches = Math.max(0, data.gantt.filter(g => g.id !== 'IDLE').length - 1);
+
+    Object.values(data.results).forEach(r => {
+      totalWT += r.wt;
+      totalTAT += r.tat;
+      totalBusy += r.bt;
+    });
+
+    const avgWT = totalWT / n;
+    const avgTAT = totalTAT / n;
+    if (avgWT < minAvgWT) minAvgWT = avgWT;
+    if (avgTAT < minAvgTAT) minAvgTAT = avgTAT;
+
+    return {
+      name: a.name,
+      totalTime: totalTime,
+      avgWT: avgWT.toFixed(2),
+      avgTAT: avgTAT.toFixed(2),
+      cpuUtil: ((totalBusy / totalTime) * 100).toFixed(1) + '%',
+      switches: switches,
+      desc: a.desc,
+      rawWT: avgWT,
+      rawTAT: avgTAT
+    };
+  }).filter(Boolean);
+
+  stats.forEach(s => {
+    const tr = document.createElement('tr');
+    const isBestWT = Math.abs(s.rawWT - minAvgWT) < 0.001;
+    const isBestTAT = Math.abs(s.rawTAT - minAvgTAT) < 0.001;
+
+    tr.innerHTML = `
+      <td><b>${s.name}</b></td>
+      <td>${s.totalTime} ชม.</td>
+      <td class="${isBestWT ? 'best-stat' : ''}">${s.avgWT} ชม. ${isBestWT ? '🏆 (ดีที่สุด)' : ''}</td>
+      <td class="${isBestTAT ? 'best-stat' : ''}">${s.avgTAT} ชม. ${isBestTAT ? '🏆' : ''}</td>
+      <td>${s.cpuUtil}</td>
+      <td>${s.switches} ครั้ง</td>
+      <td style="font-size: 0.8rem; color: var(--text-muted);">${s.desc}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// Switch Algorithm sub-tabs
+function switchAlgo(algoKey, btnElement) {
+  currentAlgo = algoKey;
+  document.querySelectorAll('.algo-btn').forEach(b => b.classList.remove('active'));
+  if (btnElement) btnElement.classList.add('active');
+
+  const singleView = document.getElementById('single-algo-view');
+  const compView = document.getElementById('comparison-view');
+
+  if (algoKey === 'COMPARISON') {
+    singleView.style.display = 'none';
+    compView.style.display = 'block';
+    renderComparisonTable();
+  } else {
+    singleView.style.display = 'block';
+    compView.style.display = 'none';
+    renderSingleAlgoView();
+  }
+}
+
+// --- Practice Mode (Manual Calculation & Self-Checking) ---
+function renderPracticeWorksheets() {
+  const container = document.getElementById('practice-worksheets');
+  if (!container) return;
+
+  const targetAlgos = [
+    { key: 'FCFS', label: '1) First-Come, First-Served (FCFS)' },
+    { key: 'SJF', label: '2) Shortest Job First (SJF) [Non-Preemptive]' },
+    { key: 'RR', label: `3) Round Robin (Time Quantum q = ${document.getElementById('time-quantum').value})` }
+  ];
+
+  container.innerHTML = targetAlgos.map(algo => `
+    <div class="card" style="border-left: 4px solid var(--accent-purple);">
+      <div class="card-header">
+        <div class="card-title">${algo.label}</div>
+        <span class="badge badge-purple">บันทึกผลการคำนวณด้วยมือ</span>
+      </div>
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>PID</th>
+              <th>ชื่องาน</th>
+              <th>AT (ชั่วโมง)</th>
+              <th>BT (ชั่วโมง)</th>
+              <th>คำตอบ CT (ของคุณ)</th>
+              <th>คำตอบ TAT (ของคุณ)</th>
+              <th>คำตอบ WT (ของคุณ)</th>
+              ${solutionsRevealed ? '<th style="background: rgba(16,185,129,0.15); color: var(--accent-green);">เฉลย CT / TAT / WT</th>' : ''}
+            </tr>
+          </thead>
+          <tbody>
+            ${processes.map(p => {
+              const uCT = (studentAnswers[algo.key] && studentAnswers[algo.key][p.id] && studentAnswers[algo.key][p.id].ct) || '';
+              const uTAT = (studentAnswers[algo.key] && studentAnswers[algo.key][p.id] && studentAnswers[algo.key][p.id].tat) || '';
+              const uWT = (studentAnswers[algo.key] && studentAnswers[algo.key][p.id] && studentAnswers[algo.key][p.id].wt) || '';
+
+              const trueVal = (scheduleData[algo.key] && scheduleData[algo.key].results[p.id]) || { ct: 0, tat: 0, wt: 0 };
+
+              return `
+                <tr>
+                  <td><b>${p.id}</b></td>
+                  <td>${p.name}</td>
+                  <td>${p.at}</td>
+                  <td>${p.bt}</td>
+                  <td>
+                    <input type="number" class="input-calc" id="ans_${algo.key}_${p.id}_ct" value="${uCT}" placeholder="CT" onchange="onStudentAnswerChange('${algo.key}', '${p.id}', 'ct', this.value)">
+                  </td>
+                  <td>
+                    <input type="number" class="input-calc" id="ans_${algo.key}_${p.id}_tat" value="${uTAT}" placeholder="TAT" onchange="onStudentAnswerChange('${algo.key}', '${p.id}', 'tat', this.value)">
+                  </td>
+                  <td>
+                    <input type="number" class="input-calc" id="ans_${algo.key}_${p.id}_wt" value="${uWT}" placeholder="WT" onchange="onStudentAnswerChange('${algo.key}', '${p.id}', 'wt', this.value)">
+                  </td>
+                  ${solutionsRevealed ? `
+                    <td style="font-family: monospace; font-size: 0.85rem; color: var(--accent-green);">
+                      CT = <b>${trueVal.ct}</b> | TAT = <b>${trueVal.tat}</b> | WT = <b>${trueVal.wt}</b>
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-center text-slate-600">${r.at}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-center text-slate-600">${r.bt}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-center text-emerald-600 font-semibold">${r.ct}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-center text-blue-600 font-semibold">${r.tat}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-center text-purple-600 font-semibold">${r.wt}</td>
-                `;
-                resultTableBody.appendChild(tr);
-            });
+                  ` : ''}
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `).join('');
 
-            // 3. Render Gantt Chart
-            const ganttChart = document.getElementById('ganttChart');
-            const ganttTimeline = document.getElementById('ganttTimeline');
-            ganttChart.innerHTML = '';
-            ganttTimeline.innerHTML = '';
+  if (solutionsRevealed) {
+    checkStudentAnswers();
+  }
+}
 
-            if (gantt.length === 0) return;
+function onStudentAnswerChange(algoKey, pid, field, val) {
+  if (!studentAnswers[algoKey]) studentAnswers[algoKey] = {};
+  if (!studentAnswers[algoKey][pid]) studentAnswers[algoKey][pid] = {};
+  studentAnswers[algoKey][pid][field] = val;
+  if (solutionsRevealed) {
+    checkStudentAnswers();
+  }
+}
 
-            const totalTime = gantt[gantt.length - 1].end;
+function toggleSolutions() {
+  solutionsRevealed = !solutionsRevealed;
+  updateRevealButtonText();
+  renderPracticeWorksheets();
+}
 
-            // Generate CSS pattern for Idle state
-            const styleId = "idlePatternStyle";
-            if (!document.getElementById(styleId)) {
-                const style = document.createElement('style');
-                style.id = styleId;
-                style.innerHTML = `
-                    .stripe-pattern {
-                        background-image: repeating-linear-gradient(
-                            45deg,
-                            transparent,
-                            transparent 10px,
-                            #e2e8f0 10px,
-                            #e2e8f0 20px
-                        );
-                    }
-                `;
-                document.head.appendChild(style);
-            }
+function updateRevealButtonText() {
+  const btn = document.getElementById('reveal-btn');
+  if (!btn) return;
+  if (solutionsRevealed) {
+    btn.innerHTML = '🔒 ซ่อนเฉลย (Hide Solutions)';
+    btn.className = 'btn btn-sm btn-primary';
+  } else {
+    btn.innerHTML = '🔓 เฉลยและตรวจเทียบผล (Reveal Solutions)';
+    btn.className = 'btn btn-success';
+  }
+}
 
-            gantt.forEach((block, index) => {
-                const blockDuration = block.end - block.start;
-                const widthPercent = (blockDuration / totalTime) * 100;
+function checkStudentAnswers() {
+  ['FCFS', 'SJF', 'RR'].forEach(algoKey => {
+    const data = scheduleData[algoKey];
+    if (!data) return;
 
-                // Add Bar
-                const div = document.createElement('div');
-                div.className = `flex flex-col items-center justify-center text-white text-xs sm:text-sm font-semibold border-r border-white/20 gantt-block ${block.color} overflow-hidden whitespace-nowrap`;
-                div.style.width = `${widthPercent}%`;
-                
-                if (block.id !== 'Idle') {
-                    div.innerHTML = `<span>${block.id}</span>`;
-                } else {
-                    div.innerHTML = `<span class="text-slate-500 font-medium text-xs">Idle</span>`;
-                }
-                
-                // Add tooltip
-                div.title = `${block.id}: ${block.start} to ${block.end} (Duration: ${blockDuration})`;
-                ganttChart.appendChild(div);
+    processes.forEach(p => {
+      const trueVal = data.results[p.id];
+      if (!trueVal) return;
 
-                // Add Timeline Markers
-                // Add start marker (always for first, and others if not overlapping)
-                if (index === 0) {
-                    addMarker(block.start, 0);
-                }
-                // Add end marker
-                const leftPos = (block.end / totalTime) * 100;
-                addMarker(block.end, leftPos);
-            });
+      ['ct', 'tat', 'wt'].forEach(field => {
+        const inputEl = document.getElementById(`ans_${algoKey}_${p.id}_${field}`);
+        if (!inputEl) return;
 
-            function addMarker(time, leftPercent) {
-                // Prevent duplicate overlapping labels closely
-                const existing = Array.from(ganttTimeline.children).map(c => parseFloat(c.style.left));
-                if (existing.some(l => Math.abs(l - leftPercent) < 1)) return; // skip if too close visually
+        const userVal = parseInt(inputEl.value, 10);
+        const expected = trueVal[field];
 
-                const marker = document.createElement('div');
-                marker.className = 'absolute -translate-x-1/2 flex flex-col items-center';
-                marker.style.left = `${leftPercent}%`;
-                marker.innerHTML = `
-                    <div class="w-px h-2 bg-slate-300"></div>
-                    <span>${time}</span>
-                `;
-                ganttTimeline.appendChild(marker);
-            }
+        inputEl.classList.remove('calc-correct', 'calc-incorrect');
+        if (!isNaN(userVal)) {
+          if (userVal === expected) {
+            inputEl.classList.add('calc-correct');
+          } else {
+            inputEl.classList.add('calc-incorrect');
+          }
         }
+      });
+    });
+  });
+}
 
-        // Initialize App
-        init();
+// --- Main Tabs Navigation ---
+function switchMainTab(tabKey) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-content-practice').style.display = 'none';
+  document.getElementById('tab-content-simulation').style.display = 'none';
+  document.getElementById('tab-content-edge').style.display = 'none';
 
-    </script>
+  if (tabKey === 'practice') {
+    document.getElementById('tab-practice-btn').classList.add('active');
+    document.getElementById('tab-content-practice').style.display = 'block';
+  } else if (tabKey === 'simulation') {
+    document.getElementById('tab-sim-btn').classList.add('active');
+    document.getElementById('tab-content-simulation').style.display = 'flex';
+    renderSingleAlgoView();
+  } else if (tabKey === 'edge') {
+    document.getElementById('tab-edge-btn').classList.add('active');
+    document.getElementById('tab-content-edge').style.display = 'block';
+  }
+}
+
+// --- Theme Toggle ---
+function toggleTheme() {
+  const current = document.body.getAttribute('data-theme');
+  const next = current === 'dark' ? 'light' : 'dark';
+  document.body.setAttribute('data-theme', next);
+  document.getElementById('theme-toggle').textContent = next === 'dark' ? '☀️ โหมดสว่าง' : '🌙 โหมดมืด';
+  localStorage.setItem('cpu_theme', next);
+}
+
+// --- Student Info LocalStorage Persistence ---
+function saveStudentInfo() {
+  const info = {
+    name: document.getElementById('std-name').value,
+    id: document.getElementById('std-id').value,
+    sec: document.getElementById('std-sec').value,
+    members: document.getElementById('std-members').value,
+    date: document.getElementById('std-date').value,
+    instructor: document.getElementById('std-instructor').value
+  };
+  localStorage.setItem('cpu_std_info', JSON.stringify(info));
+}
+
+function loadStudentInfo() {
+  try {
+    const saved = localStorage.getItem('cpu_std_info');
+    if (saved) {
+      const info = JSON.parse(saved);
+      if (info.name) document.getElementById('std-name').value = info.name;
+      if (info.id) document.getElementById('std-id').value = info.id;
+      if (info.sec) document.getElementById('std-sec').value = info.sec;
+      if (info.members) document.getElementById('std-members').value = info.members;
+      if (info.date) document.getElementById('std-date').value = info.date;
+      if (info.instructor) document.getElementById('std-instructor').value = info.instructor;
+    } else {
+      // Default sample date
+      document.getElementById('std-date').value = '2026-10-05';
+    }
+
+    const savedTheme = localStorage.getItem('cpu_theme');
+    if (savedTheme) {
+      document.body.setAttribute('data-theme', savedTheme);
+      document.getElementById('theme-toggle').textContent = savedTheme === 'dark' ? '☀️ โหมดสว่าง' : '🌙 โหมดมืด';
+    }
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+// --- Copy Problem Link ---
+function copyShareLink() {
+  const state = {
+    seed: document.getElementById('seed-input').value,
+    count: document.getElementById('process-count').value,
+    q: document.getElementById('time-quantum').value,
+    t0: document.getElementById('t0-datetime').value,
+    procs: processes
+  };
+  const jsonStr = encodeURIComponent(JSON.stringify(state));
+  const url = `${window.location.origin}${window.location.pathname}#state=${jsonStr}`;
+  navigator.clipboard.writeText(url).then(() => {
+    alert("คัดลอกลิงก์การตั้งค่าโจทย์เรียบร้อยแล้ว!");
+  }).catch(() => {
+    prompt("คัดลอกลิงก์นี้:", url);
+  });
+}
+
+// --- JSON Export / Import ---
+function exportJSON() {
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    student: {
+      name: document.getElementById('std-name').value,
+      id: document.getElementById('std-id').value,
+      sec: document.getElementById('std-sec').value,
+      members: document.getElementById('std-members').value,
+      date: document.getElementById('std-date').value,
+      instructor: document.getElementById('std-instructor').value
+    },
+    parameters: {
+      seed: document.getElementById('seed-input').value,
+      quantum: document.getElementById('time-quantum').value,
+      t0: document.getElementById('t0-datetime').value
+    },
+    processes: processes,
+    simulationResults: scheduleData
+  };
+
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `CPU_Scheduling_${payload.parameters.seed || 'assignment'}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importJSON(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (data.student) {
+        document.getElementById('std-name').value = data.student.name || '';
+        document.getElementById('std-id').value = data.student.id || '';
+        document.getElementById('std-sec').value = data.student.sec || '';
+        document.getElementById('std-members').value = data.student.members || '';
+        document.getElementById('std-date').value = data.student.date || '';
+        document.getElementById('std-instructor').value = data.student.instructor || '';
+        saveStudentInfo();
+      }
+      if (data.parameters) {
+        document.getElementById('seed-input').value = data.parameters.seed || 'OS-2026';
+        document.getElementById('time-quantum').value = data.parameters.quantum || 4;
+        document.getElementById('t0-datetime').value = data.parameters.t0 || '2026-10-05T22:17';
+      }
+      if (Array.isArray(data.processes)) {
+        processes = data.processes;
+        renderProcessesTable();
+        recalculateAll();
+      }
+      alert("นำเข้าข้อมูลสำเร็จ!");
+    } catch (err) {
+      alert("ไฟล์ JSON ไม่ถูกต้อง: " + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+// Initial Boot
+window.addEventListener('DOMContentLoaded', () => {
+  loadStudentInfo();
+
+  // Check URL hash state
+  if (window.location.hash.startsWith('#state=')) {
+    try {
+      const encoded = window.location.hash.substring(7);
+      const state = JSON.parse(decodeURIComponent(encoded));
+      if (state.seed) document.getElementById('seed-input').value = state.seed;
+      if (state.count) document.getElementById('process-count').value = state.count;
+      if (state.q) document.getElementById('time-quantum').value = state.q;
+      if (state.t0) document.getElementById('t0-datetime').value = state.t0;
+      if (state.procs) processes = state.procs;
+    } catch (e) {
+      console.warn("Invalid state in URL hash", e);
+    }
+  }
+
+  if (processes.length === 0) {
+    // Default preset from screenshot
+    applyPreset('screenshot');
+  } else {
+    renderProcessesTable();
+    recalculateAll();
+  }
+});
+</script>
+
 </body>
 </html>
+cpu_scheduling_app.html
+กำลังแสดง cpu_scheduling_app.html
